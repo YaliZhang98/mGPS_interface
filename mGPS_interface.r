@@ -322,7 +322,7 @@ mGPS <-
 
 
 #Import data sets 
-setwd( rprojroot::find_rstudio_root_file())
+#setwd( rprojroot::find_rstudio_root_file())
 
 remove_control <- function(metasub_data,text){
   for (i in range(length(strsplit(text,";")[[1]]))){
