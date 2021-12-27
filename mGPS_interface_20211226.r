@@ -454,12 +454,12 @@ model_accuracy_f <- function(metasub_data,optVars,classTarget_in,hierarchy_in){
   set.seed(18)
  
   #generate 5 stratified folds for test predictions.
-  trainFolds <-  createFolds(metasub_data[,classTarget_in], k = 5, returnTrain = T)
+  trainFolds <-  createFolds(metasub_data[,classTarget_in], k = 3, returnTrain = T)
   
   GeoPreds <- list()
   
   #iteratively train the model on each of the 5 training folds and generate predictions using the coresponding test fold.
-  for (i in 1:5){
+  for (i in 1:3){
     
     print(i)
     print("-------------------------------------------")
@@ -480,7 +480,7 @@ model_accuracy_f <- function(metasub_data,optVars,classTarget_in,hierarchy_in){
   
   #Combine these test predictions into one data set 
   add_preds <- list()
-  for (i in 1:5){
+  for (i in 1:3){
     
     add_preds[[i]] <- cbind(metasub_data[-trainFolds[[i]],] , 
                             "cityPred"= GeoPreds[[i]][[1]], 
@@ -1130,7 +1130,7 @@ ui <- fluidPage(
         by the user and report the prediction result of the sample source. (If user want
                                                                             to visualize the accuracy of the model, please use function:",em("Build a new prediction model using mGPS"),")"),
                      p("3. ",strong("Use existing model to predict new samples")),
-                     p("This mode can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple")), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple"))),
+                     p("This mode can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
                      br(),
                      p("For more detail introduction and examples, visit the ",
                        a("mGPS interface on Gitbub", 
@@ -1197,7 +1197,7 @@ ui <- fluidPage(
                                                    value = c(-165,168))), 
                              column(6, sliderInput("ylim_3", "latitude range:",
                                                    min = -180, max = 120,
-                                                   value = c(-120,120)))) ,
+                                                   value = c(-120,120)))),
                    
                    radioButtons("pull_3", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_3",
