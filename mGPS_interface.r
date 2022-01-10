@@ -4,7 +4,6 @@ library(rworldmap)
 library(caret)
 library(maps)
 library(geosphere)
-library(caret)
 library(plyr)
 library(rgeos)
 library(mapplots)
@@ -14,7 +13,7 @@ library(xgboost)
 library(e1071)
 library(rgdal)
 library(maptools)
-library(sp)
+
 
 
 setwd( rprojroot::find_rstudio_root_file())

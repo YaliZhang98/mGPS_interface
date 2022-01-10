@@ -5,9 +5,13 @@
 This is a web program based on the mGPS application created by Shiny. It can build a microbial origin prediction model or predict the origin of microbes. The detail explanation of output result is reported in the tutorial file: mGPS Interface Tutorial.pdf 
 To learn more about mGPS, please visit: [mGPS](https://github.com/eelhaik/mGPS)  
 
-### Usage
+## Usage
 
-Open the R script **mGPS_interface.r** in R and click label ```Run App``` in R . Then user can select the function model and operate on interface. The output files that user can download from interface will be automaticlly stored in **Outputs** folder.
+Open the R script **mGPS_interface.r** in R and click label ```Run App``` in R . Then user can select the function model and operate on interface. The output files that user can download from interface will be automaticlly stored in **Outputs** folder. Detailed usage is introduced in each function part in **Model Function** part.
+
+## Dependencies
+
+Required packages can be found in ```packages.r```
 
 ## Model Function
 
@@ -153,6 +157,8 @@ User can find the test files (example files) in folder **Example_file**.
 
 ### 1 Build a new prediction model using mGPS
 
+For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate.
+
 - *Merged_training_dataset.csv*: Merged metadata and abundance data file.  
 
 - *Separate_training_abundance.csv*: Abundance data of samples.  
@@ -188,4 +194,9 @@ Similar enter information and oprations as function 2 **Build a new prediction m
 
 ### 3 Use existing model to predict new samples
 
-*Sample_prediction_MetaSub.csv* : Select ```Use existing model to predict new samples function``` in prediction program (left side bar) and upload this file on interface. Then click ```start``` and click the ```Result Plot``` tab. In ```Result Plot``` tab, the latitude and logitude range can be adjusted. The prediction points can be pull to land and marine.
+- *Sample_prediction_MetaSub.csv* : samples that can be used to do the prediction  
+- *Data/model_Metasub/MetaSub_model.Rda*： A model that built from the MetaSub dataset. It can be used to predict the sample origin in urban. To learn more about MetaSub, please visit: [MetaSUB International Consortium inaugural meeting report](https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-016-0168-z)   
+1. ```Upload sample(s) abundance file```: *Sample_prediction_MetaSub.csv*  
+2. ```Upload the prediction model (In .Rda format)```: *MetaSub_model.Rda* 
+3. Start the program: Click the ```Start``` bar and then click the ```Result Plot``` tab   
+4. In ```Result Plot``` tab, the latitude and logitude range can be adjusted. The prediction points can be pull to land and marine.
