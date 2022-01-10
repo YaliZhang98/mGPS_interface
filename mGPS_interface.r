@@ -319,14 +319,9 @@ pull_land <- function(land_preds){
 
 # Pull to nearest water body
 
-pull_marine <- function(marine_taxa,marine_preds,hierarchy){
+pull_marine <- function(marine_preds){
 
-  mins = c()
-  for (i in 1:nrow(marine_taxa)){
-    dists <- sp::spDistsN1( as.matrix(marine_taxa[-i,c(hierarchy[length(hierarchy)-1],hierarchy[length(hierarchy)])]), c(marine_taxa[i,hierarchy[length(hierarchy)-1]],marine_taxa[i,hierarchy[length(hierarchy)]]), longlat = TRUE)
-    mins <-  c(mins,min(dists))
-  }
-  
+
   seas <- rgdal::readOGR(dsn = "Data/Geo/ne_10m_geography_marine_polys", layer = "ne_10m_geography_marine_polys")
   coastlines <- cbind("x"  =maps::SpatialPolygons2map(seas)$x ,"y" =maps::SpatialPolygons2map(seas)$y)
   coastlines <- coastlines[complete.cases(coastlines),]
@@ -506,7 +501,7 @@ model_accuracy_f <- function(metasub_data,optVars,classTarget_in,hierarchy_in){
     }
   }
   
-  write.csv(MetasubDataPreds,"Outputs/Prediction_results.csv")
+  write.csv(MetasubDataPreds,"Outputs/Prediction_results_20220102.csv")
   
   save(model_last_one,file="Outputs/Prediction_model.Rda")
   
@@ -601,7 +596,9 @@ MetaSub_prediction <- function(model_store,test_dataset){
 # Plot predicted location of samples in training dataset. It can show how many samples are located into their continent.
 plot_map <- function(MetasubDataPreds,hierarchy_in,classTarget_in,x_ran,y_ran){
   
-  par(mai=c(1,1,0.5,0.5))
+  par(mai=c(2,1,0.5,0.5), mar=par()$mar+c(3,0,0,0))
+  
+  
   
   map <- rworldmap::getMap(resolution = "coarse")
   palette <-c( "darkorchid4","gold2","dodgerblue3","brown","orangered2","mediumspringgreen","deeppink2")
@@ -656,13 +653,68 @@ plot_map <- function(MetasubDataPreds,hierarchy_in,classTarget_in,x_ran,y_ran){
   }
   map.axes(cex.axis = 1.1)
   
-  legend(-168,-90, label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 0.7, bg ="lightskyblue1",n=4)
+  legend(xpd = T,'bottom',inset=c(0,-0.35), label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 0.8,n=4)
+  
   box( col = 'black')
+  par(mar=c(5, 4, 4, 2) + 0.1)
+  
+  # save plot
+  png("Outputs/prediction_map.png", width = 13,height = 8, units = 'in', res = 600)
+  
+  par(mai=c(2,1,0.5,0.5), mar=par()$mar+c(3,0,0,0))
+  
+  plot(map, xlim = x_ran,ylim = y_ran,col = "grey",border = "darkgrey", xlab = "", ylab = '', bg = "lightskyblue1")
+  title(ylab="Latitude",xlab = "Longitude", mgp=c(2,1,0),cex.lab=1.2)
+ 
+  label_continent <- c()
+  flag <- 0
+  for ( i in 1:length(levels(MetasubDataPreds[,hierarchy_in[1]]))){
+    this_continent <- levels(MetasubDataPreds[,hierarchy_in[1]])[i]
+    label_continent <- c(label_continent,this_continent)
+    find_lats <- MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,][,"latPred"]
+    find_longs <- MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,][,"longPred"]
+    
+    #plot predicted co-ordinates
+    points(find_longs, find_lats, col = palette[i], pch = "+", cex = 1.2,xlim = c(-165,168))
+    
+    #plot city prediction accuravy by continent as pies
+    
+    correctly_pred <-  mean(as.numeric(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"]== 
+                                         MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in])) 
+    
+    incorrectly_pred <- (1 - correctly_pred)
+    
+    if (this_continent %in% continent_position$continent_list){
+      add.pie(z = c(correctly_pred, incorrectly_pred), x = as.numeric(continent_position[continent_position$continent_list==this_continent,3]), y = as.numeric(continent_position[continent_list==this_continent,2])
+              ,edges=200,
+              radius=10,
+              col=c(palette[i],"black") , labels = ""
+      )
+    }else{
+      
+      add.pie(z = c(correctly_pred, incorrectly_pred), x = as.numeric(-150+flag), y = 105
+              ,edges=200,
+              radius=10,
+              col=c(palette[i],"black") , labels = ""
+      )
+      flag <- flag + 25
+    }
+  }
+  # map.axes(cex.axis = 1.1)
+  
+  legend('bottom',inset=c(0,-0.3), label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 1,n=5)
+  
+  box( col = 'black')
+  
+  map.axes()
+  dev.off()
 }
+
 
  
 # Plot the prediction origin of sample on worldmap
 plot_prediction <- function(MetasubDataPreds,x_ran,y_ran){
+  
   par(mai=c(1,1,0.5,0.5))
 
   map <- rworldmap::getMap(resolution = "coarse")
@@ -788,9 +840,9 @@ ui <- fluidPage(
       
       # Program selection
       selectInput("program","Prediction program",
-                  c("Microbial origin prediction based on MetaSub" = "aa",
-                    "Build a new prediction model using mGPS" = "cc",
-                    "Build a new prediction model using mGPS and predict new samples" = "bb"
+                  c("Build a new prediction model using mGPS" = "cc",
+                    "Build a new prediction model using mGPS and predict new samples" = "bb",
+                    "Use existing model to predict new samples" = "aa"
                     )
                   ),
       
@@ -798,19 +850,12 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "input.program == 'aa'",
         fileInput(inputId = "f_new_test_1",
-                  label = "upload the sample abundance file",
+                  label = "Upload sample(s) abundance file",
                   accept = c("text/csv",
                              ".csv")),
-        
-        sliderInput("xlim_1", "longitude range:",
-                    min = -165, max = 168,
-                    value = c(-165,168)),
-        sliderInput("ylim_1", "latitude range:",
-                    min = -180, max = 120,
-                    value = c(-120,120)),
-        
-        checkboxInput("pull_1", "Pull points to land", FALSE),
-        
+        fileInput(inputId = "model",
+                  label = "Upload the prediction model (In .Rda format)",
+                  accept = ".Rda"),
         actionButton(inputId = "acbutton_1", 
                      label ="Start")
       ),
@@ -819,78 +864,68 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "input.program == 'bb'",
         fileInput(inputId = "f_new_test_2",
-                  label = "upload the testing file (sample abundance file)",
+                  label = "Upload new sample abundance file(s)",
                   accept = c("text/csv",
                              ".csv")),
         radioButtons(inputId = "file_num_2",
-                     label = "upload the training file (reference file)",
+                     label = "Upload reference file(s)",
                      c("Merged metadata and abundance file" = "one_file",
                        "Separate metadata and abundance file" = "two_file")
         ),
         conditionalPanel(
           condition = "input.file_num_2 == 'one_file'",
           fileInput(inputId = "f_new_train_2",
-                    label = "upload the reference abundance dataset file",
+                    label = "Upload the reference merged dataset file",
                     accept = c("text/csv",
                                ".csv")),
         ),
         conditionalPanel(
           condition = "input.file_num_2 == 'two_file'",
           fileInput(inputId = "f_metadata_2",
-                    label = "upload the metadata file",
+                    label = "Upload the metadata file",
                     accept = c("text/csv",
                                ".csv")),
           fileInput(inputId = "f_abundance_2",
-                    label = "upload the abundance file",
+                    label = "Upload the abundance file",
                     accept = c("text/csv",
                                ".csv")),
           textInput(inputId = "by_x_2",
-                    label = "merge column name in metadata file"),
+                    label = "Merge column name in metadata file"),
           textInput(inputId = "by_y_2",
-                    label = "merge column name in abundance file")
+                    label = "Merge column name in abundance file")
         ),
         textInput(inputId= "target_2",
-                  label ="Please enter the target (same as column name) "),
+                  label ="Enter the main locality level"),
         textAreaInput(inputId = "hierarchy_2",
-                      label = "hierarchy in prediction model (separator:',' )",
+                      label = "Enter the locality hierarchy",
                       rows = 1),
         textAreaInput(inputId = "abundance_range_2",
-                      label = "column range of abundance data in merged/abundance file with separator as ':' (eg. 47:100)",
+                      label = "Column range of abundance data",
                       rows = 1),
         
-        sliderInput("xlim_2", "longitude range:",
-                    min = -165, max = 168,
-                    value = c(-165,168)),
-        sliderInput("ylim_2", "latitude range:",
-                    min = -180, max = 120,
-                    value = c(-120,120)),
-        radioButtons("pull_2", "Whether pull points to land/marine",
-                     choices = c("Pull to land" = "land_2",
-                                 "Pull to marine" = "marine_2",
-                                 "None" = "none_2"),
-                     selected = "none_2"),   
         
-        checkboxInput('remove_small_2',"Remove targets whose sample size isless than a certain value", value = FALSE),
+        
+        checkboxInput('remove_small_2',"Locality sample size cut off (Optional)", value = FALSE),
         conditionalPanel( 
           condition = "input.remove_small_2 == true",
           textAreaInput(inputId = "remove_small_value_2",
-                        label = "cut off of sample number (eg. 3)",
+                        label = "Cut off of sample number",
                         rows = 1),
         ),
         
-        checkboxInput("control_remove_2", "Remove values (eg. control values)", value = FALSE),
+        checkboxInput("control_remove_2", "Remove values (Optional)", value = FALSE),
         conditionalPanel( 
           condition = "input.control_remove_2 == true",
           textAreaInput(inputId = "control_value_2",
-                        label = "Values need to be removed with format as 'remove_column1:value1,value2;remove_column2:value1,value2'",
+                        label = "Values need to be removed",
                         rows = 1),
         ),
         
-        checkboxInput("subsets_2", "Subsets in feature elimination", value = FALSE),
+        checkboxInput("subsets_2", "Subsets in feature elimination (Optional)", value = FALSE),
         conditionalPanel( 
           condition = "input.subsets_2 == true",
           textAreaInput(inputId = "subsets_value_2",
-                        label = "Subsets with separator as ',' (eg. 50,100,200,300,500,1500)",
+                        label = "Subsets size",
                         rows = 1),
         ),
         
@@ -903,78 +938,67 @@ ui <- fluidPage(
         condition = "input.program == 'cc'",
         radioButtons(inputId = "file_num_3",
                      label = "Input file",
-                     c("merged Metadata and abundance file" = "one_file",
-                       "separate Metadata and abundance file" = "two_file")
+                     c("Merged metadata and abundance file" = "one_file",
+                       "Separate metadata and abundance fil" = "two_file")
                       ),
         conditionalPanel(
           condition = "input.file_num_3 == 'one_file'",
           fileInput(inputId = "f_new_train_3",
-                    label = "upload the reference abundance dataset file",
+                    label = "Upload the reference merged dataset file",
                     accept = c("text/csv",
                                ".csv")),
         ),
         conditionalPanel(
           condition = "input.file_num_3 == 'two_file'",
           fileInput(inputId = "f_metadata_3",
-                    label = "upload the metadata file",
+                    label = "Upload the metadata file",
                     accept = c("text/csv",
                                ".csv")),
           fileInput(inputId = "f_abundance_3",
-                    label = "upload the abundance file",
+                    label = "Upload the abundance file",
                     accept = c("text/csv",
                                ".csv")),
           textInput(inputId = "by_x_3",
-                    label = "merge column name in metadata file"),
+                    label = "Merge column name in metadata file"),
           textInput(inputId = "by_y_3",
-                    label = "merge column name in abundance file")
+                    label = "Merge column name in abundance file")
         ),
         textInput(inputId= "target_3",
-                  label ="Please enter the target (same as column name) "),
+                  label ="Enter the main locality level"),
         textAreaInput(inputId = "hierarchy_3",
-                      label = "hierarchy in prediction model (separator:',' )",
+                      label = "Enter the locality hierarchy",
                       rows = 1),
         textAreaInput(inputId = "abundance_range_3",
-                      label = "column range of abundance data in merged/abundance file with separator as ':' (eg. 47:100)",
+                      label = "Column range of abundance data",
                       rows = 1),
-        sliderInput("xlim_3", "longitude range:",
-                    min = -165, max = 168,
-                    value = c(-165,168)),
-        sliderInput("ylim_3", "latitude range:",
-                    min = -180, max = 120,
-                    value = c(-120,120)),
         
-        radioButtons("pull_3", "Whether pull points to land/marine",
-                     choices = c("Pull to land" = "land_3",
-                                 "Pull to marine" = "marine_3",
-                                 "None" = "none"),
-                     selected = "none"),        
-        
-        checkboxInput('remove_small_3',"Remove targets whose sample size isless than a certain value", value = FALSE),
+        checkboxInput('remove_small_3',"Locality sample size cut off (Optional)", value = FALSE),
         conditionalPanel( 
           condition = "input.remove_small_3 == true",
           textAreaInput(inputId = "remove_small_value_3",
-                        label = "cut off of sample number (eg. 3)",
+                        label = "Cut off of sample number",
                         rows = 1),
         ),
         
-        checkboxInput("control_remove_3", "Remove values (eg. control values)", value = FALSE),
+        checkboxInput("control_remove_3", "Remove values (Optional)", value = FALSE),
         conditionalPanel( 
           condition = "input.control_remove_3 == true",
           textAreaInput(inputId = "control_value_3",
-                        label = "Values need to be removed with format as 'remove_column1:value1,value2;remove_column2:value1,value2'",
+                        label = "Values need to be removed",
                         rows = 1),
         ),
         
-        checkboxInput("subsets_3", "Subsets in feature elimination", value = FALSE),
+        checkboxInput("subsets_3", "Subsets in feature elimination (Optional)", value = FALSE),
         conditionalPanel( 
           condition = "input.subsets_3 == true",
           textAreaInput(inputId = "subsets_value_3",
-                        label = "Subsets with separator as ',' (eg. 50,100,200,300,500,1500)",
+                        label = "Subsets size",
                         rows = 1),
         ),
         
         actionButton(inputId = "acbutton_3", 
                      label ="Start")
+        
     )
   ),
     
@@ -986,30 +1010,72 @@ ui <- fluidPage(
         tabsetPanel(
           type = "tabs",
           tabPanel("HELP",
-                   helpText("This is a web program based on the mGPS application created by Shiny. It can 
-                            build a microbial origin prediction model or predict the origin of microbes."),
-                   helpText(strong("Microbial origin prediction based on MetaSub")),
-
-                   helpText(strong("Function description: "),"This model can predict the source of microorganisms
-                            according to the microorganism database from MetaSub. ","MetaSUB is a mapping project
-                            which carried out a large worldwide metagenomic investigation in urban areas and provided
-                            a huge microbial sample dataset with metadata.","To learn more about MetaSub, please visit:",
-                            a(em("MetaSUB International Consortium inaugural meeting report"),
-                              href="https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-016-0168-z"),
+                   
+                   
+                   h3("Use existing model to predict new samples"),
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   
+                   h4("Function description"),
+                   
+                   br(),
+                   p("This mode can predict new sample origin based on an exsiting prediction model."),
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   
+                   h4("Usage"),
+                   br(),
+                   p("In left side bar:",style = "font-size:16px"),
+                   p("1. Select ",strong("Prediction program")," as ",em("Use existing model to predict new samples", style = "color:purple")), 
+                   p("2. ",strong("Upload sample(s) abundance file:")," Upload data file(s) (in .csv format) containing new microbial sample abundance data."),  
+                   p("3. ",strong("Upload the prediction model:")," Upload a constructed origin prediction model in .Rda format. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
+                   br(),
+                   p("In ",strong("Result Plot")," tab:",style = "font-size:16px"),
+                   p("4. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
+                   p("5. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
+                   p(strong("Start the program:")," Click the",strong("Start"),"bar and then click the ",strong("Result Plot")," tab",style = "font-size:16px"),
+                   
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   
+                   h4("Result plot and output"),
+                   br(),
+                   p(strong("Result Plot")," tab:"),
+                   p("The exsiting model will be used to predict the origin of new sample."),
+                  
+                   p("* World map: new samples' prediction origins are plotted on the world map"),
+                   br(),
+                   
+                   p(strong("Output")," tab:"),
+                   p("The results of using the exsiting prediction model to predict the source coordinates of new sample(s)."),
+                   p("For more introduction of output results, view the manual file in ",
+                     a("mGPS interface Gitbub",href = "https://github.com/YaliZhang98/mGPS_interface"))
+                   
+                   ,h4("_______________________________________________"),
+                   
                    ),
-                   helpText(strong("Usage: "),"The user uploads the microbial abundance data of the sample. (The file can contain multiple samples)"
-                   ),
-                   helpText(strong("Function and output:"),"The original geographic location predicted by the sample will be displayed on the world
-                            map in the Map tab of the program. In the Data tab of the program, users can directly download the predicted source coordinate
-                            data of the sample in the uploaded file. (Prelatitude column: predicted source latitude; Prelongitude column: predicted source longitude)"
-                   )
-          ),
-          tabPanel("Map",
+          tabPanel("Result Plot",
+                   fluidRow( column(6, sliderInput("xlim_1", "longitude range:",
+                                                   min = -165, max = 168,
+                                                   value = c(-165,168))), 
+                             column(6, sliderInput("ylim_1", "latitude range:",
+                                                   min = -90, max = 90,
+                                                   value = c(-90,90)))) ,
+                   radioButtons("pull_1", "Whether pull points to land/marine",
+                                choices = c("Pull to land" = "land_1",
+                                            "Pull to marine" = "marine_1",
+                                            "None" = "none"),
+                                selected = "none"), 
                    plotOutput(outputId = "predicted_map_1"),
-                   width = "100%"
+                   downloadButton("downloadMap_1",
+                                  "DownloadMap")
+                   # ,width = "100%"
                    ),
           
-          tabPanel("Data",
+          tabPanel("Output",
                    helpText("Here you can download the predicted original coordinates of samples in your uploaded file. 
                             (Reference microbiome locations are based on MetaSub project microbiome database)"),
                    
@@ -1025,34 +1091,82 @@ ui <- fluidPage(
         tabsetPanel(
           type = "tabs",
           tabPanel("HELP",
-                   helpText("This is a web program based on the mGPS application created by Shiny. It can 
-                            build a microbial origin prediction model or predict the origin of microbes."
-                   ),
-                   helpText(strong("Build a new prediction model using mGPS and predict new samples")),
-
-                   helpText(strong("Function description: "),"This mode can train the microbial source
-                            prediction model based on the reference data set uploaded by the user. The
-                            prediction model will be used to predict the new sample to be tested provided
-                            by the user and report the prediction result of the sample source. (If you need
-                            to visualize the accuracy of the model, please use",strong("Build a new prediction model using mGPS"),")"),
                    
-                   helpText(strong("Usage: ")),
-                   helpText("User need to upload a data file containing microbial abundance. The metadata and abundance data of the sample can be merged into one file (Merged metadata and abundance data), or uploaded as two files (Separate metadata and abundance data)"),
-                   helpText("target: the target (marker) of the model selected by the user. It should same as the name of column header. (eg. city)"
+                   h3("Build a new prediction model using mGPS and predict new samples"),
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   h4("Function description"),
+                   br(),
+                   p("This mode can train the microbial origin prediction model based on 
+                   the reference data set uploaded by the user. The constructed prediction 
+                   model will be used to predict the new sample to be tested provided by the 
+                   user and report the prediction result of the sample source. (If user want 
+                   to visualize the accuracy of the model, please use function:",em("Build a new prediction model using mGPS", style = "color:purple"),")"),
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   
+                   h4("Usage"),
+                   br(),
+                   p("In left side bar:",style = "font-size:16px"),
+                   p("1. Select ",strong("Prediction program")," as ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")), 
+                   p("2. ",strong("Upload new sample(s) abundance file:")," Upload file (in .csv format) containing abundance data of new sample(s)."),  
+                   
+                   p("3. ",strong("Upload reference file(s):")," Upload data file(s) (in .csv format) containing microbial abundance data and metadata."),  
+                   p("   In metadata, at least one locality (eg. continent, city) and coordinates (necessary) data columns should be included. The metadata and abundance data of the sample can be merged into one file (",em("Merged metadata and abundance data", style = "color:purple"),"), or uploaded as two files (",em("Separate metadata and abundance data", style = "color:purple"),")"),
+                   p("When ",em("Separate metadata and abundance file", style = "color:purple")," is selected. ",strong("Merge column name in metadata/abundance file: "),"Input the header name of column which is the merged column in two files."),
+                   p("4. ",strong("Enter the main locality level:")," Input the main locality target. It should same as that column header. (eg. city)"),
+                   p("5. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as separator. (eg. continent,city,latitude,longitude)"),
+                   p("6. ",strong("Columns range of abundance data:")," Input the columns range number of abundance data in the abundance/merged file. Use ':' as separator (eg 44:1000)"),
+                   p("7. ",strong("Locality sample size cut off:"),em(" (Optional) "),"Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)"),
+                   p("8. ",strong("Remove values:"),em(" (Optional) ")," Remove some special values in column such as control samples. If checked, input column name(s) and corresponding value(s). (format eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)"),
+                   p("9. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Set the size of subsets used in feature elimination (find the optimal subset size of microbiome features). If checked, input the subsets size with separator as ',' (eg. 50,100,200,300)"),
+                   br(),
+                   p("In ",strong("Result Plot")," tab:",style = "font-size:16px"),
+                   p("10. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
+                   p("11. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
+                   p(strong("Start the program:")," Click the",strong("Start"),"bar and then click the ",strong("Result Plot")," tab",style = "font-size:16px"),
+                   
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   
+                   h4("Result plot and output"),
+                   br(),
+                   p(strong("Result Plot")," tab:"),
+                   p("The reference datasets will be used to construct a origin prediction model by mGPS.
+                     Then this model will be used to predict origin of new samples."),
+                   
+                   p("* World map: samples' prediction origins are plotted on the world map"),
+                   br(),
+                   
+                   p(strong("Output")," tab:"),
+                   p("The results of using the constructed prediction model to predict the source coordinates of the new samples. In addition, the constructed prediction model can be downloaded (In Rda format)."),
+                   p("For more introduction of output results, view the manual file in ",
+                     a("mGPS interface Gitbub",href = "https://github.com/YaliZhang98/mGPS_interface"))
+          ,h4("_______________________________________________"),
+
                    ),
-                   helpText("hierarchy: The marker chain used in mGPS to construct the prediction model (corresponds to the header of the column). In addition to latitude and longitude, there can be at most two. Use ',' as separator  (eg. continent,city,latitude,longitude)"),
-                   helpText("column range of abundance data: the number of columns in the file for the column containing abundance data. Use ':' as separator (eg 44:1000)"),
-                   helpText("Remove values: user can select to remove some special values in column such as control samples. If checked, user need to input the value and correponding column name. (eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)"),
-                   helpText(strong("Function and output:")),
-                   helpText("The",strong( "Map bar"),"The original geographic location predicted by the sample will be displayed on the world
-                            map"
-                   ),
-                    helpText("The",strong( "Data bar"),"of the program will provide users with the results of using the constructed prediction model to predict the source coordinates of the original data set samples. In addition, users can download the constructed prediction model (In Rda format).")
-          ),
-          tabPanel("Map",
-                   plotOutput(outputId = "predicted_map_2")),
+                                                                                           
+                     
+          tabPanel("Result Plot",
+                   fluidRow( column(6, sliderInput("xlim_2", "longitude range:",
+                                                   min = -165, max = 168,
+                                                   value = c(-165,168))), 
+                             column(6, sliderInput("ylim_2", "latitude range:",
+                                                   min = -90, max = 90,
+                                                   value = c(-90,90)))) ,
+                   radioButtons("pull_2", "Whether pull points to land/marine",
+                                choices = c("Pull to land" = "land_2",
+                                            "Pull to marine" = "marine_2",
+                                            "None" = "none_2"),
+                                selected = "none_2"),   
+                   plotOutput(outputId = "predicted_map_2"),
+                   downloadButton("downloadMap_2",
+                                  "DownloadMap")),
           
-          tabPanel("Data",
+          tabPanel("Output",
                    helpText("Predicted original coordinates of samples can be downloaded. Prediction model in RDA format can be downloaded"),
                    downloadButton("downloadData_2",
                                   "Download prediction data"),
@@ -1071,42 +1185,121 @@ ui <- fluidPage(
         tabsetPanel(
           type = "tabs",
           
+          tabPanel("Welcome",
+                   h2("Welcome to mGPS application"),
+                   
+                   br(),
+                   p("This is a web program based on the mGPS application created by 
+      Shiny. It can build a microbial origin prediction model and predict 
+        the origin of microbes.", style = "font-size:16px"),
+                   p("To learn more about mGPS, please visit:",
+                     a(em("mGPS"),
+                       href="https://github.com/eelhaik/mGPS"), style = "font-size:16px"),
+                   br(),
+                   h3("Function"),
+                   br(),
+                   p("This program contains three functions. These function can be performed by selected ",strong("Prediction program")," in the left side bar. The detail usage 
+        will be introduced in ",strong("HELP")," tab for each function.", style = "font-size:16px"),
+                   br(),
+                   p("1. ",strong("Build a new prediction model using mGPS")),
+                   p("This mode can use the mGPS tool to build a microbial source prediction model based
+                            on the microbial abundance data and coordinates data uploaded by the user.","To learn more about mGPS, please visit:",
+                     a(em("mGPS"),
+                       href="https://github.com/eelhaik/mGPS"),
+                     p("2. ",strong("Build a new prediction model using mGPS and predict new samples")),
+                     p("This mode can train the microbial origin
+        prediction model based on the reference data set uploaded by the user. The
+        constructed prediction model will be used to predict the new sample to be tested provided
+        by the user and report the prediction result of the sample source. (If user want
+                                                                            to visualize the accuracy of the model, please use function:",em("Build a new prediction model using mGPS"),")"),
+                     p("3. ",strong("Use existing model to predict new samples")),
+                     p("This mode can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
+                     br(),
+                     p("For more detail introduction and examples, visit the ",
+                       a("mGPS interface on Gitbub", 
+                         href = "https://github.com/YaliZhang98/mGPS_interface"), style = "font-size:16px"),
+                   )),
+          
           tabPanel("HELP",
-                   helpText("This is a web program based on the mGPS application created by Shiny. It can 
-                            build a microbial origin prediction model or predict the origin of microbes."
-                           ),
-                   helpText(strong("Build a new prediction model using mGPS")),
-
-                   helpText(strong("Function description: "),"This model can use the mGPS tool to build a microbial source prediction model based
-                            on the microbial abundance data uploaded by the user.","To learn more about mGPS, please visit:",
-                            a(em("mGPS"),
-                              href="https://github.com/eelhaik/mGPS"),
-                   ),
-                   helpText(strong("Usage: ")),
-                   helpText("User need to upload a data file containing microbial abundance. The metadata and abundance data of the sample can be merged into one file (Merged metadata and abundance data), or uploaded as two files (Separate metadata and abundance data)"),
-                  helpText("target: the target (marker) of the model selected by the user. It should same as the name of column header. (eg. city)"
-                   ),
-                  helpText("hierarchy: The marker chain used in mGPS to construct the prediction model (corresponds to the header of the column). In addition to latitude and longitude, there can be at most two. Use ',' as separator  (eg. continent,city,latitude,longitude)"),
-                  helpText("column range of abundance data: the number of columns in the file for the column containing abundance data. Use ':' as separator (eg 44:1000)"),
-                  helpText("Remove values: user can select to remove some special values in column such as control samples. If checked, user need to input the value and correponding column name. (eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)"),
-                  helpText(strong("Function and output:")),
-                  helpText("The",strong( "Accuracy bar"),"of the program will show the user the accuracy
+                   
+                   h3("Build a new prediction model using mGPS"),
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   h4("Function description"),
+                   br(),
+                   p("This model can use the mGPS tool to build a microbial source prediction model based
+                            on the microbial abundance data and coordinates data uploaded by the user."),
+                   h4("_______________________________________________"),
+                   
+                   br(),
+                   
+                   h4("Usage"),
+                   br(),
+                   p("In left side bar:",style = "font-size:16px"),
+                   p("1. Select ",strong("Prediction program")," as ",em("Build a new prediction model using mGPS", style = "color:purple")), 
+                   p("2. ",strong("Input file(s):")," Upload data file(s) (in .csv format) containing microbial abundance data and metadata."),  
+                   p("   In metadata, at least one locality (eg. continent, city) and coordinates (necessary) data columns should be included. The metadata and abundance data of the sample can be merged into one file (",em("Merged metadata and abundance data"),"), or uploaded as two files (",em("Separate metadata and abundance data"),")"),
+                   p("When ",em("Separate metadata and abundance file")," is selected. ",strong("Merge column name in metadata/abundance file: "),"Input the header name of column which is the merged column in two files."),
+                   p("3. ",strong("Enter the main locality level:")," Input the main locality target. It should same as that column header. (eg. city)"),
+                  p("4. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as separator. (eg. continent,city,latitude,longitude)"),
+                  p("5. ",strong("Columns range of abundance data:")," Input the columns range number of abundance data in the abundance/merged file. Use ':' as separator (eg 44:1000)"),
+                  p("6. ",strong("Locality sample size cut off:"),em(" (Optional) "),"Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)"),
+                  p("7. ",strong("Remove values:"),em(" (Optional) ")," Remove some special values in column such as control samples. If checked, input column name(s) and corresponding value(s). (format eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)"),
+                  p("8. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Set the size of subsets used in feature elimination (find the optimal subset size of microbiome features). If checked, input the subsets size with separator as ',' (eg. 50,100,200,300)"),
+                  br(),
+                  p("In ",strong("Result Plot")," tab:",style = "font-size:16px"),
+                  p("9. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
+                  p("10. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
+                  p(strong("Start the program:")," Click the",strong("Start"),"bar and then click the ",strong("Result Plot")," tab",style = "font-size:16px"),
+                  
+                  h4("_______________________________________________"),
+                  
+                  br(),
+                  
+                  h4("Result plot and output"),
+                  br(),
+                  p(strong("Result Plot")," tab:"),
+                  p("Show the accuracy
                             of the prediction model trained by the mGPS tool and based on the reference microbial database
-                            uploaded by the user. The original database will be divided into 5 folds, and mGPS will use 4 of
+                            uploaded by the user."),
+                  p("The original database will be divided into 5 folds, and mGPS will use 4 of
                             these folds to train the model, and the resulting model will be used to predict the microbial source
                             of the remaining fold. Iteratively obtain the prediction result of the original database and compare
                             it with the actual location of the microorganism."
                   ),
-                  helpText("world map: samples' prediction origins are plotted on the world map"),
-                  helpText("accuracy bar plot: model built by mGPS accuracy per site for the original reference dataset. mGPS accuracy is shown per-site as the distances between the predicted and true sampling site for the reference samples. The average prediction accuracy across all samples with each population given equal weight is shown on the left. The panel shows the results for QCed site"),
-                  helpText("The",strong( "Data bar"),"of the program will provide users with the results of using the constructed prediction model to predict the source coordinates of the original data set samples. In addition, users can download the constructed prediction model (In Rda format).")
-                  ),
+                  
+                  p("* World map: samples' prediction origins are plotted on the world map"),
+                  p("* Accuracy bar plot: model built by mGPS accuracy per site for the original reference dataset. mGPS accuracy is shown per-site as the distances between the predicted and true sampling site for the reference samples. The average prediction accuracy across all samples with each population given equal weight is shown on the left."),
+                  br(),
+                  
+                  p(strong("Output")," tab:"),
+                  p("The results of using the constructed prediction model to predict the source coordinates of the original dataset samples. In addition, the constructed prediction model can be downloaded (In Rda format)."),
+                  p("For more introduction of output results, view the manual file in ",
+                    a("mGPS interface Gitbub",href = "https://github.com/YaliZhang98/mGPS_interface"))
+                  ,h4("_______________________________________________"),
+),
           
-          tabPanel("Accuracy",
+          tabPanel("Result Plot",
+                   
+                   fluidRow( column(6, sliderInput("xlim_3", "longitude range:",
+                                                   min = -165, max = 168,
+                                                   value = c(-165,168))), 
+                             column(6, sliderInput("ylim_3", "latitude range:",
+                                                   min = -90, max = 120,
+                                                   value = c(-90,120)))),
+                   
+                   radioButtons("pull_3", "Whether pull points to land/marine",
+                                choices = c("Pull to land" = "land_3",
+                                            "Pull to marine" = "marine_3",
+                                            "None" = "none"),
+                                selected = "none"),   
                    plotOutput(outputId = "predicted_map_3"),
+                   downloadButton("downloadMap_3",
+                                  "DownloadMap"),
                    plotOutput(outputId = "predicted_accuracy_3")
                    ),
-          tabPanel("Data",
+          tabPanel("Output",
                    helpText("Predicted original coordinates of samples can be downloaded. Prediction model in RDA format can be downloaded"),
                    downloadButton("downloadData_3",
                                   "Download prediction data"),
@@ -1132,9 +1325,10 @@ options(shiny.maxRequestSize=200*1024^2)
 server <- function(input,output){
     
       model_store <- reactive({
-          load("model_Metasub/20211011/MetaSub_model_2.Rda")
+        req(input$model)
+        path <- input$model$datapath
+        load(path)
         # load("Data/model_Metasub/MetaSub_model.Rda")
-
           return(model_store)
       })
       
@@ -1158,8 +1352,10 @@ server <- function(input,output){
       })
 
     pull_MetasubDataPreds <- reactive({
-      if (input$pull_1 == TRUE){
+      if (input$pull_1 == "land_1"){
         pull_MetasubDataPreds <- pull_land(MetasubDataPreds())
+      }else if (input$pull_1 == "marine_1"){
+        pull_MetasubDataPreds <- pull_marine(MetasubDataPreds())  
       }else{
         pull_MetasubDataPreds <- MetasubDataPreds()
       }
@@ -1172,6 +1368,39 @@ server <- function(input,output){
       y_ran <- input$ylim_1
       plot_prediction(pull_MetasubDataPreds(),x_ran,y_ran)
     })
+    
+    output$downloadMap_1 <- downloadHandler(
+      
+      filename = function(){
+        return("Predicted_map.png")
+      },
+      content = function(file){
+        
+        MetasubDataPreds <- pull_MetasubDataPreds()
+        
+        x_ran <- input$xlim_1
+        y_ran <- input$ylim_1
+        
+        png(file, width = 13,height = 8, units = 'in', res = 600)
+        
+        par(mai=c(1,1,0.5,0.5))
+        
+        map <- rworldmap::getMap(resolution = "coarse")
+        
+        plot(map, xlim = x_ran,ylim = y_ran, col = "grey",border = "darkgrey", xlab = "", ylab = '', bg = "lightskyblue1")
+        title(ylab="Latitude",xlab = "Longitude", mgp=c(2,1,0),cex.lab=1.2)
+        
+        find_lats <- MetasubDataPreds$latPred
+        find_longs <- MetasubDataPreds$longPred
+        
+        points(find_longs,find_lats, type = "p",col = "purple", pch = "+", cex = 1.3)
+        # map.axes(cex.axis = 1.1)
+        
+        map.axes()
+        dev.off()
+      })
+    
+    
     
     output$downloadData_1 <- downloadHandler(
       filename = function(){
@@ -1191,6 +1420,38 @@ server <- function(input,output){
         y_ran <- input$ylim_2
         plot_prediction(df,x_ran,y_ran)
       })
+      
+      output$downloadMap_2 <- downloadHandler(
+        
+        filename = function(){
+          return("Predicted_map.png")
+        },
+        content = function(file){
+
+          MetasubDataPreds <- prediction_output()[[1]]
+         
+          x_ran <- input$xlim_2
+          y_ran <- input$ylim_2
+          
+          png(file, width = 13,height = 8, units = 'in', res = 600)
+          
+          
+          par(mai=c(1,1,0.5,0.5))
+          
+          map <- rworldmap::getMap(resolution = "coarse")
+          
+          plot(map, xlim = x_ran,ylim = y_ran, col = "grey",border = "darkgrey", xlab = "", ylab = '', bg = "lightskyblue1")
+          title(ylab="Latitude",xlab = "Longitude", mgp=c(2,1,0),cex.lab=1.2)
+          
+          find_lats <- MetasubDataPreds$latPred
+          find_longs <- MetasubDataPreds$longPred
+          
+          points(find_longs,find_lats, type = "p",col = "purple", pch = "+", cex = 1.3)
+          # map.axes(cex.axis = 1.1)
+          
+          map.axes()
+          dev.off()
+        })
       
       output$downloadData_2 <- downloadHandler(
         
@@ -1469,7 +1730,7 @@ server <- function(input,output){
         if(input$program == "bb" ){
           if (input$pull_2 == "marine_2"){
             df <- prediction_output[[1]]
-            df_new <- pull_marine(metasub_data(),df,hierarchy_in())
+            df_new <- pull_marine(df)
             prediction_output[[1]] <- df_new
           }else if(input$pull_2 == "land_2"){
             df <- prediction_output[[1]]
@@ -1510,16 +1771,30 @@ server <- function(input,output){
         output$predicted_map_3 <- renderPlot({
           x_ran <- input$xlim_3
           y_ran <- input$ylim_3
-          df <- prediction_output()[[1]]
-          hierarchy_in <- hierarchy_in()
-          classTarget_in <- classTarget_in()
+          # df <- prediction_output()[[1]]
+          # hierarchy_in <- hierarchy_in()
+          # classTarget_in <- classTarget_in()
+          
+          df <-  read.csv('Outputs/Prediction_results_20220102.csv')
+
+          hierarchy_in <- c('continent','city','latitude','longitude')
+
+          classTarget_in <- 'city'
+          # 
+          # x_ran <- c(-165,168)
+          # y_ran <- c(-90,90)
+          
           plot_map(df,hierarchy_in,classTarget_in,x_ran,y_ran)
         })
         
         output$predicted_accuracy_3 <- renderPlot({
-          classTarget_in <- classTarget_in()
-          hierarchy_in <- hierarchy_in()
-          plot_accuracy(prediction_output()[[1]],classTarget_in,hierarchy_in)
+          # classTarget_in <- classTarget_in()
+          # hierarchy_in <- hierarchy_in()
+          df <-  read.csv('Outputs/Prediction_results_20220102.csv')
+          hierarchy_in <- c('continent','city','latitude','longitude')
+          classTarget_in <- 'city'
+          # plot_accuracy(prediction_output()[[1]],classTarget_in,hierarchy_in)
+          plot_accuracy(df,classTarget_in,hierarchy_in)
         })
         
         output$downloadData_3 <- downloadHandler(
@@ -1547,6 +1822,93 @@ server <- function(input,output){
             write.csv(git_subset(),file)
           })
       
+        output$downloadMap_3 <- downloadHandler(
+          filename = function(){
+            return("Prediction_map.png")
+          },
+          content = function(file){
+            MetasubDataPreds <- read.csv('Outputs/Prediction_results_20220102.csv')
+            
+            # MetasubDataPreds <- prediction_output()[[1]]
+            # hierarchy_in <- hierarchy_in()
+            # classTarget_in <- classTarget_in()
+            x_ran <- input$xlim_3
+            y_ran <- input$ylim_3
+            # MetasubDataPreds <- read.csv("Outputs/Prediction_results2.csv")
+            # 
+            hierarchy_in <- c('continent','city','latitude','longitude')
+
+            classTarget_in <- 'city'
+            # 
+            # x_ran <- c(-165,168)
+            # y_ran <- c(-90,90)
+              
+            png(file, width = 13,height = 8, units = 'in', res = 600)
+            
+            par(mai=c(2,1,0.5,0.5), mar=par()$mar+c(3,0,0,0))
+            
+            map <- rworldmap::getMap(resolution = "coarse")
+            palette <-c( "darkorchid4","gold2","dodgerblue3","brown","orangered2","mediumspringgreen","deeppink2")
+            
+            plot(map, xlim = x_ran,ylim = y_ran,col = "grey",border = "darkgrey", xlab = "", ylab = '', bg = "lightskyblue1")
+            title(ylab="Latitude",xlab = "Longitude", mgp=c(2,1,0),cex.lab=1.2)
+            
+            for (i in 1:(length(hierarchy_in)-2)){
+              MetasubDataPreds[,hierarchy_in[i]] <- factor(MetasubDataPreds[,hierarchy_in[i]])
+            }
+            
+            MetasubDataPreds$cityPred <- factor(MetasubDataPreds$cityPred)
+            
+            # get the coordination of continent
+            continent_list <- c("east_asia","europe","middle_east","north_america","oceania","south_america", "sub_saharan_africa",'Australia','North_America','Europe','Africa','South_america','Asia')
+            continent_lats <- c(55,69,8,40,-40,-10,-5,-40,40,69,-5,-10,55)
+            continent_longs <- c(125,0,60,-130,140,-80,5,140,-130,0,5,-80,125)
+            continent_position <- data.frame(cbind(continent_list,continent_lats,continent_longs))
+            
+            
+            label_continent <- c()
+            flag <- 0
+            for ( i in 1:length(levels(MetasubDataPreds[,hierarchy_in[1]]))){
+              this_continent <- levels(MetasubDataPreds[,hierarchy_in[1]])[i]
+              label_continent <- c(label_continent,this_continent)
+              find_lats <- MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,][,"latPred"]
+              find_longs <- MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,][,"longPred"]
+              
+              #plot predicted co-ordinates
+              points(find_longs, find_lats, col = palette[i], pch = "+", cex = 1.2,xlim = c(-165,168))
+              
+              #plot city prediction accuravy by continent as pies
+              
+              correctly_pred <-  mean(as.numeric(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"]== 
+                                                   MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in])) 
+              
+              incorrectly_pred <- (1 - correctly_pred)
+              
+              if (this_continent %in% continent_position$continent_list){
+                add.pie(z = c(correctly_pred, incorrectly_pred), x = as.numeric(continent_position[continent_position$continent_list==this_continent,3]), y = as.numeric(continent_position[continent_list==this_continent,2])
+                        ,edges=200,
+                        radius=10,
+                        col=c(palette[i],"black") , labels = ""
+                )
+              }else{
+                
+                add.pie(z = c(correctly_pred, incorrectly_pred), x = as.numeric(-150+flag), y = 105
+                        ,edges=200,
+                        radius=10,
+                        col=c(palette[i],"black") , labels = ""
+                )
+                flag <- flag + 25
+              }
+            }
+            # map.axes(cex.axis = 1.1)
+            
+            legend(xpd=T,'bottom',inset=c(0,-0.35), label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 1,n=5)
+            
+            box( col = 'black')
+            
+            map.axes()
+            dev.off()
+          })
         
         output$downloadModel <- downloadHandler(
           filename = function(){
