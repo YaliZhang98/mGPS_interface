@@ -118,7 +118,7 @@ Required packages can be found in ```packages.r```
     - ```Download feature subsets accuracy in feature elimination``` -  The prediction accuracy for different size of feature subsets.  
     - ```DownloadModel``` -  The constructed prediction model (In Rda format). User can load this model into R to check the detailed model information through `load("Prediction_model.Rda")`
 
-### 3 Use existing model to predict new samples
+### 3 Use an existing model to predict new samples
 
 - Function description  
   This mode can predict new sample origin based on an exsiting prediction model.   
@@ -127,7 +127,7 @@ Required packages can be found in ```packages.r```
   
   - A. **In left side bar**:  
   
-  - Select ```Prediction program``` as `Use existing model to predict new samples`   
+  - Select ```Prediction program``` as `Use an existing model to predict new samples`   
   
   - ```Upload new sample(s) abundance file```: Upload data file(s) (in .csv format) containing new microbial sample abundance data.   
   
@@ -157,7 +157,7 @@ User can find the test files (example files) in folder **Example_file**.
 
 ### 1 Build a new prediction model using mGPS
 
-For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate.
+For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate. The run time for this example is about 38 minutes.
 
 - *Merged_training_dataset.csv*: Merged metadata and abundance data file.  
 
@@ -192,7 +192,7 @@ For short runtimes, the sample database contains only a small amount of sample d
 
 Similar enter information and oprations as function 2 **Build a new prediction model using mGPS**.  
 
-### 3 Use existing model to predict new samples
+### 3 Use an existing model to predict new samples
 
 - *Sample_prediction_MetaSub.csv* : samples that can be used to do the prediction  
 - *Data/model_Metasub/MetaSub_model.Rda*： A model that built from the MetaSub dataset. It can be used to predict the sample origin in urban. To learn more about MetaSub, please visit: [MetaSUB International Consortium inaugural meeting report](https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-016-0168-z)   

@@ -4,6 +4,7 @@ library(rworldmap)
 library(caret)
 library(maps)
 library(geosphere)
+library(caret)
 library(plyr)
 library(rgeos)
 library(mapplots)
@@ -13,7 +14,7 @@ library(xgboost)
 library(e1071)
 library(rgdal)
 library(maptools)
-
+library(sp)
 
 
 setwd( rprojroot::find_rstudio_root_file())
@@ -436,14 +437,14 @@ v_f <- function(featureElim){
   v <- varImp(featureElim$fit, type = 1, scale = F)
   v[,"taxa"] <- row.names(v)
   v <- v[order(v$Overall,decreasing = T),]
-  write.csv(v, file = "Outputs/optimal_features.csv")
+  write.csv(v, file = "Outputs/Optimal_features.csv")
   return(v)
 }
   
 
 git_subset_f <- function(featureElim){
   git_subset <- data.frame("n_vars" = featureElim$results$Variables, "accuracy" = featureElim$results$Accuracy)
-  write.csv(git_subset,file = "Outputs/features_subset_accuracy.csv")
+  write.csv(git_subset,file = "Outputs/Features_subset_accuracy.csv")
   return(git_subset)
 }
   
@@ -500,7 +501,7 @@ model_accuracy_f <- function(metasub_data,optVars,classTarget_in,hierarchy_in){
     }
   }
   
-  write.csv(MetasubDataPreds,"Outputs/Prediction_results_20220102.csv")
+  write.csv(MetasubDataPreds,"Outputs/Prediction_results.csv")
   
   save(model_last_one,file="Outputs/Prediction_model.Rda")
   
@@ -732,15 +733,8 @@ plot_prediction <- function(MetasubDataPreds,x_ran,y_ran){
 
 # Plot of accuracy
 
-plot_accuracy <- function(MetasubDataPreds,classTarget_in,hierarchy_in){
+plot_accuracy <- function(MetasubDataPreds,classTarget_in){
   MetasubDataPreds[,classTarget_in] <- factor(MetasubDataPreds[,classTarget_in])
-  
-  for (i in 1:nrow(MetasubDataPreds)){
-    lat <-  hierarchy_in[length(hierarchy_in)-1]
-    long <-  hierarchy_in[length(hierarchy_in)]
-    
-    MetasubDataPreds[i,"Distance_from_origin"] <- geosphere::distm(c(MetasubDataPreds[i,"longPred"],MetasubDataPreds[i,"latPred"]), c(MetasubDataPreds[i,long],MetasubDataPreds[i,lat]), fun = geosphere::distHaversine)/1000
-  }
   
   bar_df1 <- data.frame(row.names = c("Overall",levels(MetasubDataPreds[,classTarget_in])))
   
@@ -841,7 +835,7 @@ ui <- fluidPage(
       selectInput("program","Prediction program",
                   c("Build a new prediction model using mGPS" = "cc",
                     "Build a new prediction model using mGPS and predict new samples" = "bb",
-                    "Use existing model to predict new samples" = "aa"
+                    "Use an existing model to predict new samples" = "aa"
                     )
                   ),
       
@@ -1011,7 +1005,7 @@ ui <- fluidPage(
           tabPanel("HELP",
                    
                    
-                   h3("Use existing model to predict new samples"),
+                   h3("Use an existing model to predict new samples"),
                    h4("_______________________________________________"),
                    
                    br(),
@@ -1027,7 +1021,7 @@ ui <- fluidPage(
                    h4("Usage"),
                    br(),
                    p("In left side bar:",style = "font-size:16px"),
-                   p("1. Select ",strong("Prediction program")," as ",em("Use existing model to predict new samples", style = "color:purple")), 
+                   p("1. Select ",strong("Prediction program")," as ",em("Use an existing model to predict new samples", style = "color:purple")), 
                    p("2. ",strong("Upload sample(s) abundance file:")," Upload data file(s) (in .csv format) containing new microbial sample abundance data."),  
                    p("3. ",strong("Upload the prediction model:")," Upload a constructed origin prediction model in .Rda format. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
                    br(),
@@ -1135,7 +1129,8 @@ ui <- fluidPage(
                    br(),
                    p(strong("Result Plot")," tab:"),
                    p("The reference datasets will be used to construct a origin prediction model by mGPS.
-                     Then this model will be used to predict origin of new samples."),
+                     Then this model will be used to predict origin of new samples. The prediction origin map and
+                     prediction accuracy plot can be downloaded by bottons under the plots."),
                    
                    p("* World map: samples' prediction origins are plotted on the world map"),
                    br(),
@@ -1211,7 +1206,7 @@ ui <- fluidPage(
         constructed prediction model will be used to predict the new sample to be tested provided
         by the user and report the prediction result of the sample source. (If user want
                                                                             to visualize the accuracy of the model, please use function:",em("Build a new prediction model using mGPS"),")"),
-                     p("3. ",strong("Use existing model to predict new samples")),
+                     p("3. ",strong("Use an existing model to predict new samples")),
                      p("This mode can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
                      br(),
                      p("For more detail introduction and examples, visit the ",
@@ -1296,7 +1291,9 @@ ui <- fluidPage(
                    plotOutput(outputId = "predicted_map_3"),
                    downloadButton("downloadMap_3",
                                   "DownloadMap"),
-                   plotOutput(outputId = "predicted_accuracy_3")
+                   plotOutput(outputId = "predicted_accuracy_3"),
+                   downloadButton("downloadAccuracy_3",
+                                  "DownloadPlot")
                    ),
           tabPanel("Output",
                    helpText("Predicted original coordinates of samples can be downloaded. Prediction model in RDA format can be downloaded"),
@@ -1327,7 +1324,6 @@ server <- function(input,output){
         req(input$model)
         path <- input$model$datapath
         load(path)
-        # load("Data/model_Metasub/MetaSub_model.Rda")
           return(model_store)
       })
       
@@ -1393,8 +1389,7 @@ server <- function(input,output){
         find_longs <- MetasubDataPreds$longPred
         
         points(find_longs,find_lats, type = "p",col = "purple", pch = "+", cex = 1.3)
-        # map.axes(cex.axis = 1.1)
-        
+
         map.axes()
         dev.off()
       })
@@ -1446,8 +1441,7 @@ server <- function(input,output){
           find_longs <- MetasubDataPreds$longPred
           
           points(find_longs,find_lats, type = "p",col = "purple", pch = "+", cex = 1.3)
-          # map.axes(cex.axis = 1.1)
-          
+
           map.axes()
           dev.off()
         })
@@ -1464,7 +1458,7 @@ server <- function(input,output){
       output$download_optfeatures_2 <- downloadHandler(
         
         filename = function(){
-          return("optimal_features.csv")
+          return("Optimal_features.csv")
         },
         content = function(file){
           write.csv(v(),file)
@@ -1473,7 +1467,7 @@ server <- function(input,output){
       output$download_featuresub_2 <- downloadHandler(
         
         filename = function(){
-          return("features_subsets_accuracy.csv")
+          return("Features_subsets_accuracy.csv")
         },
         content = function(file){
           write.csv(git_subset(),file)
@@ -1770,30 +1764,16 @@ server <- function(input,output){
         output$predicted_map_3 <- renderPlot({
           x_ran <- input$xlim_3
           y_ran <- input$ylim_3
-          # df <- prediction_output()[[1]]
-          # hierarchy_in <- hierarchy_in()
-          # classTarget_in <- classTarget_in()
-          
-          df <-  read.csv('Outputs/Prediction_results_20220102.csv')
-
-          hierarchy_in <- c('continent','city','latitude','longitude')
-
-          classTarget_in <- 'city'
-          # 
-          # x_ran <- c(-165,168)
-          # y_ran <- c(-90,90)
+          df <- prediction_output()[[1]]
+          hierarchy_in <- hierarchy_in()
+          classTarget_in <- classTarget_in()
           
           plot_map(df,hierarchy_in,classTarget_in,x_ran,y_ran)
         })
         
         output$predicted_accuracy_3 <- renderPlot({
-          # classTarget_in <- classTarget_in()
-          # hierarchy_in <- hierarchy_in()
-          df <-  read.csv('Outputs/Prediction_results_20220102.csv')
-          hierarchy_in <- c('continent','city','latitude','longitude')
-          classTarget_in <- 'city'
-          # plot_accuracy(prediction_output()[[1]],classTarget_in,hierarchy_in)
-          plot_accuracy(df,classTarget_in,hierarchy_in)
+          classTarget_in <- classTarget_in()
+          plot_accuracy(prediction_output()[[1]],classTarget_in)
         })
         
         output$downloadData_3 <- downloadHandler(
@@ -1807,7 +1787,7 @@ server <- function(input,output){
         
         output$download_optfeatures_3 <- downloadHandler(
           filename = function(){
-            return("optimal_features.csv")
+            return("Optimal_features.csv")
           },
           content = function(file){
             write.csv(v(),file)
@@ -1815,7 +1795,7 @@ server <- function(input,output){
         
         output$download_featuresub_3 <- downloadHandler(
           filename = function(){
-            return("features_subsets_accuracy.csv")
+            return("Features_subsets_accuracy.csv")
           },
           content = function(file){
             write.csv(git_subset(),file)
@@ -1826,24 +1806,15 @@ server <- function(input,output){
             return("Prediction_map.png")
           },
           content = function(file){
-            MetasubDataPreds <- read.csv('Outputs/Prediction_results_20220102.csv')
-            
-            # MetasubDataPreds <- prediction_output()[[1]]
-            # hierarchy_in <- hierarchy_in()
-            # classTarget_in <- classTarget_in()
+
+            MetasubDataPreds <- prediction_output()[[1]]
+            hierarchy_in <- hierarchy_in()
+            classTarget_in <- classTarget_in()
             x_ran <- input$xlim_3
             y_ran <- input$ylim_3
-            # MetasubDataPreds <- read.csv("Outputs/Prediction_results2.csv")
-            # 
-            hierarchy_in <- c('continent','city','latitude','longitude')
-
-            classTarget_in <- 'city'
-            # 
-            # x_ran <- c(-165,168)
-            # y_ran <- c(-90,90)
-              
-            png(file, width = 13,height = 8, units = 'in', res = 600)
             
+            png(file, width = 13,height = 8, units = 'in', res = 600)
+
             par(mai=c(2,1,0.5,0.5), mar=par()$mar+c(3,0,0,0))
             
             map <- rworldmap::getMap(resolution = "coarse")
@@ -1899,13 +1870,105 @@ server <- function(input,output){
                 flag <- flag + 25
               }
             }
-            # map.axes(cex.axis = 1.1)
-            
-            legend(xpd=T,'bottom',inset=c(0,-0.35), label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 1,n=5)
+
+            legend(xpd=T,'bottom',inset=c(0,-0.25), label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 1,n=5)
             
             box( col = 'black')
             
             map.axes()
+            dev.off()
+          })
+        
+        
+        
+        
+        output$downloadAccuracy_3 <- downloadHandler(
+          filename = function(){
+            return("Prediction_accuracy.png")
+          },
+          content = function(file){
+
+            MetasubDataPreds <- prediction_output()[[1]]
+
+            classTarget_in <- classTarget_in()
+            
+            MetasubDataPreds[,classTarget_in] <- factor(MetasubDataPreds[,classTarget_in])
+            
+            bar_df1 <- data.frame(row.names = c("Overall",levels(MetasubDataPreds[,classTarget_in])))
+            
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              prop <- mean(MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] < 100)
+              bar_df1[i+1,"0 - 100km"] <- prop
+              
+              overall_prop <- mean(MetasubDataPreds[,"Distance_from_origin"] < 100)
+              bar_df1[ 1,"0 - 100km"] <- overall_prop
+            }
+            
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              prop <- mean(MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] > 100 & MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] < 500)
+              bar_df1[i+1,"100 - 500km"] <- prop
+              
+              overall_prop <-mean(MetasubDataPreds[,"Distance_from_origin"] > 100 & MetasubDataPreds[,"Distance_from_origin"] < 500)
+              bar_df1[ 1,"100 - 500km"] <- overall_prop
+            }
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              prop <- mean(MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] > 500 & MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] < 1000)
+              bar_df1[i+1,"500 - 1000km"] <- prop
+              
+              overall_prop <- mean(MetasubDataPreds[,"Distance_from_origin"] > 500 & MetasubDataPreds[,"Distance_from_origin"] < 1000)
+              bar_df1[ 1,"500 - 1000km"] <- overall_prop
+            }
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              prop <- mean(MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] > 1000 & MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] < 2000)
+              bar_df1[i+1,"1000 - 2000km"] <- prop
+              
+              overall_prop <- mean(MetasubDataPreds[,"Distance_from_origin"] > 1000 & MetasubDataPreds[,"Distance_from_origin"] < 2000)
+              bar_df1[ 1,"1000 - 2000km"] <- overall_prop
+            }
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              prop <- mean(MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] > 2000 & MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] < 3000)
+              bar_df1[i+1,"2000 - 3000km"] <- prop
+              
+              overall_prop <- mean(MetasubDataPreds[,"Distance_from_origin"] > 2000 & MetasubDataPreds[,"Distance_from_origin"] < 3000)
+              bar_df1[1,"2000 - 3000km"] <- overall_prop
+            }
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              prop <- mean(MetasubDataPreds[MetasubDataPreds[,classTarget_in] == this_city,][,"Distance_from_origin"] > 3000 )
+              bar_df1[i+1,"> 3000km"] <- prop
+              
+              overall_prop <- mean(MetasubDataPreds[,"Distance_from_origin"] > 3000)
+              bar_df1[ 1,"> 3000km"] <- overall_prop
+            }
+            
+            size <- c()
+            for (i in 1: length(levels(MetasubDataPreds[,classTarget_in]))){
+              
+              this_city <- levels(MetasubDataPreds[,classTarget_in])[i]
+              size[i] <- length(which(MetasubDataPreds[,classTarget_in] == this_city))
+            }
+            
+
+            png(file, width = 13,height = 8, units = 'in', res = 600)
+            par(xpd = T, mar = par()$mar + c(1,0,0,7), mgp = c(0,0.7,0), las=2)
+
+            bp <- barplot(t(bar_df1*100), space = 0,col=c("lightyellow","slategray1","lightblue", "skyblue", "royalblue3", "darkblue"), 
+                          names.arg=c("Overall",paste0(levels(MetasubDataPreds[,classTarget_in]),"  (",size,")"), axes = FALSE) , 
+                          las =2, cex.names=.6, ylab = "", axisnames = F, axes = F)
+            axis(side =2, pos = 0)
+            mtext(text = c("Overall",paste0(levels(MetasubDataPreds[,classTarget_in])," (",size,")")), side = 1, at = bp, line = 0, padj = 1, cex = 0.7)
+            title(ylab="Proportion of sample predictions %", mgp=c(2,1,0),cex.lab=1)
+            legend("topright",inset = c(-0.12,0.4), rev(c(colnames(bar_df1))), 
+                   fill = rev(c("lightyellow","slategray1","lightblue", "skyblue", "royalblue3", "darkblue")) ,
+                   bty = 1, cex = 0.8)
+           
+            par(mar=c(5, 4, 4, 2) + 0.1)
+           
             dev.off()
           })
         
