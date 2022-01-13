@@ -38,9 +38,8 @@ Required packages can be found in ```packages.r```
   
   - ```Locality sample size cut off``` -  *(Optional)* Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)  
   
-  - ``` Remove values``` -  *(Optional)* Remove some special values in column such as control samples. If checked, input column name(s) and corresponding value(s). (format eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)   
-  
-  - ```Subsets in feature elimination```: *(Optional)* Set the size of subsets used in feature elimination (find the optimal subset size of microbiome features). If checked, input the subsets size with separator as ',' (eg. 50,100,200,300)  
+  - ```Subsets in feature elimination```: *(Optional)* Limit the number of features to a certain value. If unchecked, mGPS will find the optimal subset size of microbiome features. If checked, there are three types of input format: a.input the subsets size with separator as ',' (eg. 50,100,200,300); b. input the subsets size range with separator as '-' (eg. 50-300); c. input a single value.  
+       Hint: In addition to checking the given subset sizes, the algorithm also tries to use all features(taxa) to predict the origin. If the accuracy of the subset sizes uploaded by the user is lower than the accuracy of using all features, the algorithm will still choose to use all features for prediction to improve the accuracy. If the user still wants to use a specific number of features, the feature columns in the input file can be manually filtered according to the order of importance of the features in the output file "*Optimal_features.csv*" (Download optimal features in prediction model).
   
   - **B. In `Result Plot` tab**:    
   
@@ -49,8 +48,12 @@ Required packages can be found in ```packages.r```
   - ```Whether pull points to land/marine```: *(Optional)* If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder.   
   
   - **C. Start the program:** Click the ```Start``` bar and then click the ```Result Plot``` tab   
+  
+  - **D.Data processing:** Please wait while output files are being generated. When the prompt bar disappears you can see the results and download files.  
+
 
 - Result plot and output  
+  For more explanation of output results, view the tutorial file "*mGPS Interface Tutorial.pdf*"  
   
   - ```Result Plot``` tab:  
     Show the accuracy of the prediction model trained by the mGPS tool and based on the reference microbial database uploaded by the user.  
@@ -91,9 +94,8 @@ Required packages can be found in ```packages.r```
   
   - ```Locality sample size cut off``` -  *(Optional)* Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)   
   
-  - ```Remove values``` -  *(Optional)* Remove some special values in column such as control samples. If checked, input column name(s) and corresponding value(s). (format eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)    
-  
-  - ```Subsets in feature elimination```: *(Optional)* Set the size of subsets used in feature elimination (find the optimal subset size of microbiome features). If checked, input the subsets size with separator as ',' (eg. 50,100,200,300)   
+ - ```Subsets in feature elimination```: *(Optional)* Limit the number of features to a certain value. If unchecked, mGPS will find the optimal subset size of microbiome features. If checked, there are three types of input format: a.input the subsets size with separator as ',' (eg. 50,100,200,300); b. input the subsets size range with separator as '-' (eg. 50-300); c. input a single value.  
+       Hint: In addition to checking the given subset sizes, the algorithm also tries to use all features(taxa) to predict the origin. If the accuracy of the subset sizes uploaded by the user is lower than the accuracy of using all features, the algorithm will still choose to use all features for prediction to improve the accuracy. If the user still wants to use a specific number of features, the feature columns in the input file can be manually filtered according to the order of importance of the features in the output file "*Optimal_features.csv*" (Download optimal features in prediction model).
   
   - **B. In `Result Plot` tab**:    
   
@@ -102,8 +104,10 @@ Required packages can be found in ```packages.r```
   - ```Whether pull points to land/marine```: *(Optional)* If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder.   
   
   - **C. Start the program:** Click the ```Start``` bar and then click the ```Result Plot``` tab   
+  - **D.Data processing:** Please wait while output files are being generated. When the prompt bar disappears you can see the results and download files.  
 
-- Result plot and output  
+- Result plot and output 
+For more explanation of output results, view the tutorial file "*mGPS Interface Tutorial.pdf*"  
   
   - ```Result Plot``` tab:  
     The reference datasets will be used to construct a origin prediction model by mGPS. Then this model will be used to predict origin of new samples.  
@@ -140,9 +144,11 @@ Required packages can be found in ```packages.r```
   - ```Whether pull points to land/marine```: *(Optional)* If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder.   
   
   - **C. Start the program:** Click the ```Start``` bar and then click the ```Result Plot``` tab   
+  - **D.Data processing:** Please wait while output files are being generated. When the prompt bar disappears you can see the results and download files.  
 
 - Result plot and output  
-  
+For more explanation of output results, view the tutorial file "*mGPS Interface Tutorial.pdf*"     
+
   - ```Result Plot``` tab:  
     The exsiting model will be used to predict the origin of new sample.  
     
@@ -155,17 +161,17 @@ Required packages can be found in ```packages.r```
 
 User can find the test files (example files) in folder **Example_file**.  
 
-### 1 Build a new prediction model using mGPS
+### 1 Build a new prediction model using mGPS  
 
-For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate. The run time for this example is about 38 minutes.
+For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate. It runs for a different time on different computers, between about 10-40min.  
 
 - *Merged_training_dataset.csv*: Merged metadata and abundance data file.  
 
 - *Separate_training_abundance.csv*: Abundance data of samples.  
 
 - *Separate_training_metadata.csv*: Metadata of samples.  
+
 1. ```Input file```
-   
    - **Merged metadata and abundance file**: upload file *Merged_training_dataset.csv*
    - **Separate metadata and abundance file**:upload file *Separate_training_metadata.csv* in ```Upload the metadata file``` and upload file *Separate_training_abundance.csv* in ```Upload the abundance file```   
      ```merge column name in metadata file``` - uuid  
@@ -176,21 +182,33 @@ For short runtimes, the sample database contains only a small amount of sample d
    ```Column range of abundance data``` - 43:70  
 
 3. If select ```Locality sample size cut off (Optional)```:  
-   ```Cut off of sample number ```  - 3  
+   ```Cut off of sample number ```  - 3     
 
-4. If select ```Cut off of sample number```:  
-   ```Values need to be removed ``` - city:control,other_control,neg_control,other,pos_control;control_type:ctrl cities,negative_control,positive_control    
-
-5. If select ```Subsets in feature elimination (Optional)``` :
+4. If select ```Subsets in feature elimination (Optional)``` :
    ```Subsets size``` - 5,15,20,25
 
-6. Start the program: Click the ```Start``` bar and then click the ```Result Plot``` tab   
+5. Start the program: Click the ```Start``` bar and then click the ```Result Plot``` tab   
 
-7. In ```Result Plot``` tab, the latitude and logitude range can be adjusted. The prediction points can be pull to land and marine.
+6. In ```Result Plot``` tab, the latitude and longitude range can be adjusted. The prediction points can be pull to land and waterbody.  
+
+7. For more explanation of output results, view the tutorial file "*mGPS Interface Tutorial.pdf*" 
 
 ### 2 Build a new prediction model using mGPS and predict new samples
 
-Similar enter information and oprations as function 2 **Build a new prediction model using mGPS**.  
+For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate. It runs for a different time on different computers, between about 10-40min.  
+
+- *Sample_prediction_MetaSub.csv*: New samples with taxa abundance data.  
+ 
+1. ```Upload new sample abundace file```-  upload file *Sample_prediction_MetaSub.csv*  
+
+2. ```Upload reference file(s)```  
+   - **Merged metadata and abundance file**: upload file *Merged_training_dataset.csv*
+   - **Separate metadata and abundance file**:upload file *Separate_training_metadata.csv* in ```Upload the metadata file``` and upload file *Separate_training_abundance.csv* in ```Upload the abundance file```   
+     ```merge column name in metadata file``` - uuid  
+     ```merge column name in abundance file``` - uuid  
+
+3. Similar enter information and oprations as function 2 **Build a new prediction model using mGPS**.  
+4. For more explanation of output results, view the tutorial file "*mGPS Interface Tutorial.pdf*"   
 
 ### 3 Use an existing model to predict new samples
 
@@ -199,4 +217,5 @@ Similar enter information and oprations as function 2 **Build a new prediction m
 1. ```Upload sample(s) abundance file```: *Sample_prediction_MetaSub.csv*  
 2. ```Upload the prediction model (In .Rda format)```: *MetaSub_model.Rda* 
 3. Start the program: Click the ```Start``` bar and then click the ```Result Plot``` tab   
-4. In ```Result Plot``` tab, the latitude and logitude range can be adjusted. The prediction points can be pull to land and marine.
+4. In ```Result Plot``` tab, the latitude and longitude range can be adjusted. The prediction points can be pull to land and waterbody.  
+5. For more explanation of output results, view the tutorial file "*mGPS Interface Tutorial.pdf*"   

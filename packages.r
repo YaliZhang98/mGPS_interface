@@ -13,4 +13,7 @@ install.packages('plyr')
 install.packages('rgeos')
 install.packages('shiny')
 install.packages('dplyr')
+install.packages('rprojroot')
+install.packages('doParallel')
+install.packages('randomForest')
 

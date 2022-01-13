@@ -17,7 +17,7 @@ library(maptools)
 library(sp)
 
 
-setwd( rprojroot::find_rstudio_root_file())
+setwd(rprojroot::find_rstudio_root_file())
 
 # Part 1 Function ------------------------------------------------------------------
 
@@ -354,25 +354,6 @@ pull_marine <- function(marine_preds){
 }
 
 
-#Import data sets 
-
-remove_control <- function(metasub_data,text){
-  for (i in 1:length(strsplit(text,";")[[1]])){
-    v <- strsplit(text,";")[[1]][i]
-    col <- strsplit(v,":")[[1]][1]
-    v_remove <-  strsplit(strsplit(v,":")[[1]][2],",")[[1]]
-    
-    if (col %in% colnames(metasub_data)){
-      control_samples <- c( which(metasub_data[,col] %in% v_remove)) 
-      if (length(control_samples) != 0){
-        metasub_data <- droplevels(metasub_data[-c(control_samples), ])
-      }
-    }
-  }
-  return(metasub_data)
-}
-
-
 data_preprocess_f <- function(train_f,target_in,hierarchy,remove_small){
 
   #Remove control samples
@@ -630,8 +611,8 @@ plot_map <- function(MetasubDataPreds,hierarchy_in,classTarget_in,x_ran,y_ran){
     
     #plot city prediction accuravy by continent as pies
     
-    correctly_pred <-  mean(as.numeric(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"]== 
-                              MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in])) 
+    correctly_pred <-  mean(as.numeric(as.character(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"])== 
+                                                      as.character(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in]))) 
     
     incorrectly_pred <- (1 - correctly_pred)
     
@@ -817,6 +798,15 @@ library(shiny)
 
 ui <- fluidPage(
   titlePanel('Geographical origin prediction of microbiome'),
+  
+  tags$head(
+    tags$style(HTML("
+    .shiny-output-error-validation {
+    color: red;
+    }
+    "))
+  ),
+  
   sidebarLayout(
     sidebarPanel(
       
@@ -827,7 +817,8 @@ ui <- fluidPage(
                 width: 100%; padding: 5px 0px 5px 0px;
                 text-align: center; font-weight: bold;
                 font-size: 100%; color: #000000;
-                background-color: #FFC1C1; z-index: 105;}")), 
+                background-color: #FFC1C1; z-index: 105;}"),
+                ), 
       conditionalPanel(condition="$('html').hasClass('shiny-busy')",
                        tags$div("Data loading....",id="loadmessage")),
       
@@ -906,13 +897,6 @@ ui <- fluidPage(
                         rows = 1),
         ),
         
-        checkboxInput("control_remove_2", "Remove values (Optional)", value = FALSE),
-        conditionalPanel( 
-          condition = "input.control_remove_2 == true",
-          textAreaInput(inputId = "control_value_2",
-                        label = "Values need to be removed",
-                        rows = 1),
-        ),
         
         checkboxInput("subsets_2", "Subsets in feature elimination (Optional)", value = FALSE),
         conditionalPanel( 
@@ -932,7 +916,7 @@ ui <- fluidPage(
         radioButtons(inputId = "file_num_3",
                      label = "Input file",
                      c("Merged metadata and abundance file" = "one_file",
-                       "Separate metadata and abundance fil" = "two_file")
+                       "Separate metadata and abundance file" = "two_file")
                       ),
         conditionalPanel(
           condition = "input.file_num_3 == 'one_file'",
@@ -973,13 +957,6 @@ ui <- fluidPage(
                         rows = 1),
         ),
         
-        checkboxInput("control_remove_3", "Remove values (Optional)", value = FALSE),
-        conditionalPanel( 
-          condition = "input.control_remove_3 == true",
-          textAreaInput(inputId = "control_value_3",
-                        label = "Values need to be removed",
-                        rows = 1),
-        ),
         
         checkboxInput("subsets_3", "Subsets in feature elimination (Optional)", value = FALSE),
         conditionalPanel( 
@@ -1029,6 +1006,7 @@ ui <- fluidPage(
                    p("4. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
                    p("5. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
                    p(strong("Start the program:")," Click the",strong("Start"),"bar and then click the ",strong("Result Plot")," tab",style = "font-size:16px"),
+                   p('Data processing, please wait while output files are being generated. When the prompt bar disappears you can see the results and download files.',style = "font-size:16px"),
                    
                    h4("_______________________________________________"),
                    
@@ -1044,7 +1022,7 @@ ui <- fluidPage(
                    
                    p(strong("Output")," tab:"),
                    p("The results of using the exsiting prediction model to predict the source coordinates of new sample(s)."),
-                   p("For more introduction of output results, view the manual file in ",
+                   p("For more introduction of output results, view the tutorial file in ",
                      a("mGPS interface Gitbub",href = "https://github.com/YaliZhang98/mGPS_interface"))
                    
                    ,h4("_______________________________________________"),
@@ -1059,13 +1037,12 @@ ui <- fluidPage(
                                                    value = c(-90,90)))) ,
                    radioButtons("pull_1", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_1",
-                                            "Pull to marine" = "marine_1",
-                                            "None" = "none"),
+                                            "Pull to waterbody" = "marine_1",
+                                            "Default" = "none"),
                                 selected = "none"), 
                    plotOutput(outputId = "predicted_map_1"),
                    downloadButton("downloadMap_1",
                                   "DownloadMap")
-                   # ,width = "100%"
                    ),
           
           tabPanel("Output",
@@ -1113,13 +1090,13 @@ ui <- fluidPage(
                    p("5. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as separator. (eg. continent,city,latitude,longitude)"),
                    p("6. ",strong("Columns range of abundance data:")," Input the columns range number of abundance data in the abundance/merged file. Use ':' as separator (eg 44:1000)"),
                    p("7. ",strong("Locality sample size cut off:"),em(" (Optional) "),"Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)"),
-                   p("8. ",strong("Remove values:"),em(" (Optional) ")," Remove some special values in column such as control samples. If checked, input column name(s) and corresponding value(s). (format eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)"),
-                   p("9. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Set the size of subsets used in feature elimination (find the optimal subset size of microbiome features). If checked, input the subsets size with separator as ',' (eg. 50,100,200,300)"),
+                   p("8. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Limit the number of features to a certain value. If unchecked, mGPS will find the optimal subset size of microbiome features. If checked, there are three types of input format: a.input the subsets size with separator as ',' (eg. 50,100,200,300); b. input the subsets size range with separator as '-' (eg. 50-300); c. input a single value."),
                    br(),
                    p("In ",strong("Result Plot")," tab:",style = "font-size:16px"),
-                   p("10. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
-                   p("11. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
+                   p("9. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
+                   p("10. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
                    p(strong("Start the program:")," Click the",strong("Start"),"bar and then click the ",strong("Result Plot")," tab",style = "font-size:16px"),
+                   p('Data processing, please wait while output files are being generated. When the prompt bar disappears you can see the results and download files.',style = "font-size:16px"),
                    
                    h4("_______________________________________________"),
                    
@@ -1137,7 +1114,7 @@ ui <- fluidPage(
                    
                    p(strong("Output")," tab:"),
                    p("The results of using the constructed prediction model to predict the source coordinates of the new samples. In addition, the constructed prediction model can be downloaded (In Rda format)."),
-                   p("For more introduction of output results, view the manual file in ",
+                   p("For more introduction of output results, view the tutorial file in ",
                      a("mGPS interface Gitbub",href = "https://github.com/YaliZhang98/mGPS_interface"))
           ,h4("_______________________________________________"),
 
@@ -1153,8 +1130,8 @@ ui <- fluidPage(
                                                    value = c(-90,90)))) ,
                    radioButtons("pull_2", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_2",
-                                            "Pull to marine" = "marine_2",
-                                            "None" = "none_2"),
+                                            "Pull to waterbody" = "marine_2",
+                                            "Default" = "none_2"),
                                 selected = "none_2"),   
                    plotOutput(outputId = "predicted_map_2"),
                    downloadButton("downloadMap_2",
@@ -1164,10 +1141,11 @@ ui <- fluidPage(
                    helpText("Predicted original coordinates of samples can be downloaded. Prediction model in RDA format can be downloaded"),
                    downloadButton("downloadData_2",
                                   "Download prediction data"),
-                   downloadButton("download_optfeatures_2",
-                                  "Download optimal features in prediction model"),
+                  
                    downloadButton("download_featuresub_2",
                                   "Download feature subsets accuracy in feature elimination"),
+                   downloadButton("download_optfeatures_2",
+                                  "Download optimal features in prediction model"),
                    downloadButton("downloadModel_2",
                                   "DownloadModel")
                    )
@@ -1239,14 +1217,13 @@ ui <- fluidPage(
                   p("4. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as separator. (eg. continent,city,latitude,longitude)"),
                   p("5. ",strong("Columns range of abundance data:")," Input the columns range number of abundance data in the abundance/merged file. Use ':' as separator (eg 44:1000)"),
                   p("6. ",strong("Locality sample size cut off:"),em(" (Optional) "),"Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)"),
-                  p("7. ",strong("Remove values:"),em(" (Optional) ")," Remove some special values in column such as control samples. If checked, input column name(s) and corresponding value(s). (format eg. city:control,neg_control,pos_control;control_type:ctrl cities,negative_control,positive_control)"),
-                  p("8. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Set the size of subsets used in feature elimination (find the optimal subset size of microbiome features). If checked, input the subsets size with separator as ',' (eg. 50,100,200,300)"),
+                  p("7. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Limit the number of features to a certain value. If unchecked, mGPS will find the optimal subset size of microbiome features. If checked, there are three types of input format: a.input the subsets size with separator as ',' (eg. 50,100,200,300); b. input the subsets size range with separator as '-' (eg. 50-300); c. input a single value."),
                   br(),
                   p("In ",strong("Result Plot")," tab:",style = "font-size:16px"),
-                  p("9. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
-                  p("10. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
+                  p("8. ",strong("Change longitude/latitude range in output map"),em(" (Optional) ")),
+                  p("9. ",strong("Whether pull points to land/marine:"),em(" (Optional) "),"If checked, predicted origin location will be pull to the nearest land/marine if predicted coordinates are out of the expected boarder."),
                   p(strong("Start the program:")," Click the",strong("Start"),"bar and then click the ",strong("Result Plot")," tab",style = "font-size:16px"),
-                  
+                  p('Data processing, please wait while output files are being generated. When the prompt bar disappears you can see the results and download files.',style = "font-size:16px"),
                   h4("_______________________________________________"),
                   
                   br(),
@@ -1269,7 +1246,7 @@ ui <- fluidPage(
                   
                   p(strong("Output")," tab:"),
                   p("The results of using the constructed prediction model to predict the source coordinates of the original dataset samples. In addition, the constructed prediction model can be downloaded (In Rda format)."),
-                  p("For more introduction of output results, view the manual file in ",
+                  p("For more introduction of output results, view the tutorial file in ",
                     a("mGPS interface Gitbub",href = "https://github.com/YaliZhang98/mGPS_interface"))
                   ,h4("_______________________________________________"),
 ),
@@ -1285,8 +1262,8 @@ ui <- fluidPage(
                    
                    radioButtons("pull_3", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_3",
-                                            "Pull to marine" = "marine_3",
-                                            "None" = "none"),
+                                            "Pull to waterbody" = "marine_3",
+                                            "Default" = "none"),
                                 selected = "none"),   
                    plotOutput(outputId = "predicted_map_3"),
                    downloadButton("downloadMap_3",
@@ -1299,10 +1276,10 @@ ui <- fluidPage(
                    helpText("Predicted original coordinates of samples can be downloaded. Prediction model in RDA format can be downloaded"),
                    downloadButton("downloadData_3",
                                   "Download prediction data"),
-                   downloadButton("download_optfeatures_3",
-                                  "Download optimal features in prediction model"),
                    downloadButton("download_featuresub_3",
                                   "Download feature subsets accuracy in feature elimination"),
+                   downloadButton("download_optfeatures_3",
+                                  "Download optimal features in prediction model"),
                    downloadButton("downloadModel",
                                   "DownloadModel"))
       
@@ -1323,6 +1300,9 @@ server <- function(input,output){
       model_store <- reactive({
         req(input$model)
         path <- input$model$datapath
+        validate(
+          need('Rda' %in%  strsplit(input$model$datapath,".",fixed = T)[[1]], "The model file you upload should be in .Rda format.")
+        )
         load(path)
           return(model_store)
       })
@@ -1332,11 +1312,18 @@ server <- function(input,output){
           req(input$f_new_test_1)
           test_f <- read.csv(input$f_new_test_1$datapath, 
                              header = TRUE)
+          print(input$f_new_test_1$datapath)
+          validate(
+            need('csv' %in%  strsplit(input$f_new_test_1$datapath,".",fixed = T)[[1]], "The sample abundance file you upload should be in.csv format.")
+          )
         }
         if(input$program == "bb" ){
           req(input$f_new_test_2)
           test_f <- read.csv(input$f_new_test_2$datapath, 
-                             header = TRUE)}
+                             header = TRUE)
+          validate(
+            need('csv' %in%  strsplit(input$f_new_test_2$datapath,".",fixed = T)[[1]], "The sample abundance file you upload should be in.csv format.")
+          )}
           return(test_f)
       })
       
@@ -1509,18 +1496,6 @@ server <- function(input,output){
       return(by_y_in)
     })
     
-    control_text <- reactive({
-      if(input$program == "bb" ){
-        req(input$control_value_2)
-        control_text <- input$control_value_2
-      }
-      if(input$program == "cc" ){
-        req(input$control_value_3)
-        control_text <- input$control_value_3
-      }
-      return(control_text)
-    })
-    
     classTarget_in <- reactive({
       if(input$program == "bb" ){
         req(input$target_2)
@@ -1549,7 +1524,22 @@ server <- function(input,output){
         if (input$subsets_2 == T){
           req(input$subsets_value_2)
           text <- input$subsets_value_2
-          subsets_in <- as.numeric(strsplit(text,",")[[1]])
+          
+          if ('-' %in% strsplit(text,"")[[1]]){
+            subsets_range <- as.numeric(strsplit(text,"-")[[1]])
+            
+            subsets_in <- c(subsets_range[1],
+                            round((subsets_range[2]-subsets_range[1])/5+subsets_range[1]),
+                            round((subsets_range[2]-subsets_range[1])/5*2+subsets_range[1]),
+                            round((subsets_range[2]-subsets_range[1])/5*3+subsets_range[1]),
+                            round((subsets_range[2]-subsets_range[1])/5*4+subsets_range[1]),
+                            subsets_range[2])
+            
+          }else{
+            subsets_in <- as.numeric(strsplit(text,",")[[1]])
+          }
+          
+          
          }else{
           subsets_in <- NULL
           }}
@@ -1557,7 +1547,19 @@ server <- function(input,output){
         if (input$subsets_3 == T){
           req(input$subsets_value_3)
           text <- input$subsets_value_3
-          subsets_in <- as.numeric(strsplit(text,",")[[1]])
+          if ('-' %in% strsplit(text,"")[[1]]){
+            subsets_range <- as.numeric(strsplit(text,"-")[[1]])
+            
+            subsets_in <- c(subsets_range[1],
+                            round((subsets_range[2]-subsets_range[1])/5+subsets_range[1]),
+                            round((subsets_range[2]-subsets_range[1])/5*2+subsets_range[1]),
+                            round((subsets_range[2]-subsets_range[1])/5*3+subsets_range[1]),
+                            round((subsets_range[2]-subsets_range[1])/5*4+subsets_range[1]),
+                            subsets_range[2])
+            
+          }else{
+            subsets_in <- as.numeric(strsplit(text,",")[[1]])
+          }
         }else{
           subsets_in <- NULL
         }}
@@ -1610,9 +1612,10 @@ server <- function(input,output){
             req(input$f_new_train_2)
             train_f <- read.csv(input$f_new_train_2$datapath, 
                                 header = TRUE)
-            if (input$control_remove_2 == T){
-              train_f <- remove_control(train_f,control_text()) 
-            }
+            validate(
+              need('csv' %in%  strsplit(input$f_new_train_2$datapath,".",fixed = T)[[1]], "The training file you upload should be in.csv format.")
+            )
+          
             return(train_f)
           }
           
@@ -1622,17 +1625,20 @@ server <- function(input,output){
             req(input$f_abundance_2)
             data_metadata <- read.csv(input$f_metadata_2$datapath, 
                                       header = TRUE)
+            validate(
+              need('csv' %in%  strsplit(input$f_metadata_2$datapath,".",fixed = T)[[1]], "The metadata file you upload should be in.csv format.")
+            )
             data_abundance <- read.csv(input$f_abundance_2$datapath,
                                        header = T)
+            validate(
+              need('csv' %in%  strsplit(input$f_abundance_2$datapath,".",fixed = T)[[1]], "The abundance file you upload should be in.csv format.")
+            )
             data_abundance <- unique(data_abundance)
             by_x <- by_x_in()
             by_y <- by_y_in()
             
             metasub_data <- merge(data_metadata,data_abundance,by.x=by_x,by.y=by_y) # #merge bacterial and meta data
 
-            if (input$control_remove_2 == T){
-              metasub_data <- remove_control(metasub_data,control_text()) 
-            }
             
             train_f <- metasub_data
             return(train_f)
@@ -1646,9 +1652,10 @@ server <- function(input,output){
           req(input$f_new_train_3)
           train_f <- read.csv(input$f_new_train_3$datapath, 
                               header = TRUE)
-          if (input$control_remove_3 == T){
-            train_f <- remove_control(train_f,control_text()) 
-          }
+          validate(
+            need('csv' %in%  strsplit(input$f_new_train_3$datapath,".",fixed = T)[[1]], "The training file you upload should be in.csv format.")
+          )
+         
           return(train_f)
         }
         
@@ -1658,14 +1665,17 @@ server <- function(input,output){
           req(input$f_abundance_3)
           data_metadata <- read.csv(input$f_metadata_3$datapath, 
                                     header = TRUE)
+          validate(
+            need('csv' %in%  strsplit(input$f_metadata_3$datapath,".",fixed = T)[[1]], "The metadata file you upload should be in.csv format.")
+          )
           data_abundance <- read.csv(input$f_abundance_3$datapath,
                                      header = T)
+          validate(
+            need('csv' %in%  strsplit(input$f_abundance_3$datapath,".",fixed = T)[[1]], "The abundance file you upload should be in.csv format.")
+          )
           data_abundance <- unique(data_abundance)
           metasub_data <- merge(data_metadata,data_abundance,by.x=by_x_in(),by.y=by_y_in()) # #merge bacterial and meta data
           
-          if (input$control_remove_3 == T){
-            metasub_data <- remove_control(metasub_data,control_text()) 
-          }
           
           train_f <- metasub_data
           return(train_f)
@@ -1688,6 +1698,9 @@ server <- function(input,output){
             req(input$f_metadata_2)
             data_metadata <- read.csv(input$f_metadata_2$datapath, 
                                       header = TRUE)
+            validate(
+              need('csv' %in%  strsplit(input$f_metadata_2$datapath,".",fixed = T)[[1]], "The metadata file you upload should be in.csv format.")
+            )
             range_1 <- dim(data_metadata)[2] + as.numeric(range_1) - 1
             range_2 <- dim(data_metadata)[2] + as.numeric(range_2) - 1
             
@@ -1698,6 +1711,9 @@ server <- function(input,output){
             req(input$f_metadata_3)
             data_metadata <- read.csv(input$f_metadata_3$datapath, 
                                       header = TRUE)
+            validate(
+              need('csv' %in%  strsplit(input$f_metadata_3$datapath,".",fixed = T)[[1]], "The metadata file you upload should be in.csv format.")
+            )
             range_1 <- dim(data_metadata)[2] + as.numeric(range_1) - 1
             range_2 <- dim(data_metadata)[2] + as.numeric(range_2) - 1
             
@@ -1734,7 +1750,7 @@ server <- function(input,output){
         if(input$program == "cc" ){
           if (input$pull_3 == "marine_3"){
             df <- prediction_output[[1]]
-            df_new <- pull_marine(metasub_data(),df,hierarchy_in())
+            df_new <- pull_marine(df)
             prediction_output[[1]] <- df_new
           }else if(input$pull_3 == "land_3"){
             df <- prediction_output[[1]]
@@ -1849,8 +1865,8 @@ server <- function(input,output){
               
               #plot city prediction accuravy by continent as pies
               
-              correctly_pred <-  mean(as.numeric(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"]== 
-                                                   MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in])) 
+              correctly_pred <-  mean(as.numeric(as.character(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"])== 
+                                                                as.character(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in]))) 
               
               incorrectly_pred <- (1 - correctly_pred)
               
