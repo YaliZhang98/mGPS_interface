@@ -639,56 +639,6 @@ plot_map <- function(MetasubDataPreds,hierarchy_in,classTarget_in,x_ran,y_ran){
   box( col = 'black')
   par(mar=c(5, 4, 4, 2) + 0.1)
   
-  # save plot
-  png("Outputs/prediction_map.png", width = 13,height = 8, units = 'in', res = 600)
-  
-  par(mai=c(2,1,0.5,0.5), mar=par()$mar+c(3,0,0,0))
-  
-  plot(map, xlim = x_ran,ylim = y_ran,col = "grey",border = "darkgrey", xlab = "", ylab = '', bg = "lightskyblue1")
-  title(ylab="Latitude",xlab = "Longitude", mgp=c(2,1,0),cex.lab=1.2)
- 
-  label_continent <- c()
-  flag <- 0
-  for ( i in 1:length(levels(MetasubDataPreds[,hierarchy_in[1]]))){
-    this_continent <- levels(MetasubDataPreds[,hierarchy_in[1]])[i]
-    label_continent <- c(label_continent,this_continent)
-    find_lats <- MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,][,"latPred"]
-    find_longs <- MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,][,"longPred"]
-    
-    #plot predicted co-ordinates
-    points(find_longs, find_lats, col = palette[i], pch = "+", cex = 1.2,xlim = c(-165,168))
-    
-    #plot city prediction accuravy by continent as pies
-    
-    correctly_pred <-  mean(as.numeric(MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,"cityPred"]== 
-                                         MetasubDataPreds[MetasubDataPreds[,hierarchy_in[1]] == this_continent,classTarget_in])) 
-    
-    incorrectly_pred <- (1 - correctly_pred)
-    
-    if (this_continent %in% continent_position$continent_list){
-      add.pie(z = c(correctly_pred, incorrectly_pred), x = as.numeric(continent_position[continent_position$continent_list==this_continent,3]), y = as.numeric(continent_position[continent_list==this_continent,2])
-              ,edges=200,
-              radius=10,
-              col=c(palette[i],"black") , labels = ""
-      )
-    }else{
-      
-      add.pie(z = c(correctly_pred, incorrectly_pred), x = as.numeric(-150+flag), y = 105
-              ,edges=200,
-              radius=10,
-              col=c(palette[i],"black") , labels = ""
-      )
-      flag <- flag + 25
-    }
-  }
-  # map.axes(cex.axis = 1.1)
-  
-  legend('bottom',inset=c(0,-0.3), label_continent, pch = "+", col = palette[1:length(label_continent)], cex = 1,n=5)
-  
-  box( col = 'black')
-  
-  map.axes()
-  dev.off()
 }
 
 
@@ -990,7 +940,7 @@ ui <- fluidPage(
                    h4("Function description"),
                    
                    br(),
-                   p("This mode can predict new sample origin based on an exsiting prediction model."),
+                   p("In this mode, user can predict new sample origin based on an exsiting prediction model."),
                    h4("_______________________________________________"),
                    
                    br(),
@@ -1068,7 +1018,7 @@ ui <- fluidPage(
                    br(),
                    h4("Function description"),
                    br(),
-                   p("This mode can train the microbial origin prediction model based on 
+                   p("In this mode, user can train the microbial origin prediction model based on 
                    the reference data set uploaded by the user. The constructed prediction 
                    model will be used to predict the new sample to be tested provided by the 
                    user and report the prediction result of the sample source. (If user want 
@@ -1087,7 +1037,7 @@ ui <- fluidPage(
                    p("   In metadata, at least one locality (eg. continent, city) and coordinates (necessary) data columns should be included. The metadata and abundance data of the sample can be merged into one file (",em("Merged metadata and abundance data", style = "color:purple"),"), or uploaded as two files (",em("Separate metadata and abundance data", style = "color:purple"),")"),
                    p("When ",em("Separate metadata and abundance file", style = "color:purple")," is selected. ",strong("Merge column name in metadata/abundance file: "),"Input the header name of column which is the merged column in two files."),
                    p("4. ",strong("Enter the main locality level:")," Input the main locality target. It should same as that column header. (eg. city)"),
-                   p("5. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as separator. (eg. continent,city,latitude,longitude)"),
+                   p("5. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as the separator. (eg. continent,city,latitude,longitude)"),
                    p("6. ",strong("Columns range of abundance data:")," Input the columns range number of abundance data in the abundance/merged file. Use ':' as separator (eg 44:1000)"),
                    p("7. ",strong("Locality sample size cut off:"),em(" (Optional) "),"Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)"),
                    p("8. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Limit the number of features to a certain value. If unchecked, mGPS will find the optimal subset size of microbiome features. If checked, there are three types of input format: a.input the subsets size with separator as ',' (eg. 50,100,200,300); b. input the subsets size range with separator as '-' (eg. 50-300); c. input a single value."),
@@ -1174,18 +1124,18 @@ ui <- fluidPage(
         will be introduced in ",strong("HELP")," tab for each function.", style = "font-size:16px"),
                    br(),
                    p("1. ",strong("Build a new prediction model using mGPS")),
-                   p("This mode can use the mGPS tool to build a microbial source prediction model based
+                   p("In this mode, user can use the mGPS tool to build a microbial source prediction model based
                             on the microbial abundance data and coordinates data uploaded by the user.","To learn more about mGPS, please visit:",
                      a(em("mGPS"),
                        href="https://github.com/eelhaik/mGPS"),
                      p("2. ",strong("Build a new prediction model using mGPS and predict new samples")),
-                     p("This mode can train the microbial origin
+                     p("In this mode, user can train the microbial origin
         prediction model based on the reference data set uploaded by the user. The
         constructed prediction model will be used to predict the new sample to be tested provided
         by the user and report the prediction result of the sample source. (If user want
                                                                             to visualize the accuracy of the model, please use function:",em("Build a new prediction model using mGPS"),")"),
                      p("3. ",strong("Use an existing model to predict new samples")),
-                     p("This mode can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
+                     p("In this mode, user can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
                      br(),
                      p("For more detail introduction and examples, visit the ",
                        a("mGPS interface on Gitbub", 
@@ -1214,7 +1164,7 @@ ui <- fluidPage(
                    p("   In metadata, at least one locality (eg. continent, city) and coordinates (necessary) data columns should be included. The metadata and abundance data of the sample can be merged into one file (",em("Merged metadata and abundance data"),"), or uploaded as two files (",em("Separate metadata and abundance data"),")"),
                    p("When ",em("Separate metadata and abundance file")," is selected. ",strong("Merge column name in metadata/abundance file: "),"Input the header name of column which is the merged column in two files."),
                    p("3. ",strong("Enter the main locality level:")," Input the main locality target. It should same as that column header. (eg. city)"),
-                  p("4. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as separator. (eg. continent,city,latitude,longitude)"),
+                  p("4. ",strong("Enter the locality hierarchy:")," The locality chain used in mGPS to construct the prediction model (same column headers). It should contain one or two locality information, latitude and longitude. Use ',' as the separator. (eg. continent,city,latitude,longitude)"),
                   p("5. ",strong("Columns range of abundance data:")," Input the columns range number of abundance data in the abundance/merged file. Use ':' as separator (eg 44:1000)"),
                   p("6. ",strong("Locality sample size cut off:"),em(" (Optional) "),"Remove locality whose sample size is less than a certain value. If checked, input the cut off number (eg. 8)"),
                   p("7. ",strong("Subsets in feature elimination:"),em(" (Optional) ")," Limit the number of features to a certain value. If unchecked, mGPS will find the optimal subset size of microbiome features. If checked, there are three types of input format: a.input the subsets size with separator as ',' (eg. 50,100,200,300); b. input the subsets size range with separator as '-' (eg. 50-300); c. input a single value."),
@@ -1385,7 +1335,7 @@ server <- function(input,output){
     
     output$downloadData_1 <- downloadHandler(
       filename = function(){
-        return("Predicted_origin.csv")
+        return("Prediction_results.csv")
       },
       content = function(file){
         write.csv(pull_MetasubDataPreds(),file)
