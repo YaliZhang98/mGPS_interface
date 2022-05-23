@@ -1135,7 +1135,7 @@ ui <- fluidPage(
         by the user and report the prediction result of the sample source. (If user want
                                                                             to visualize the accuracy of the model, please use function:",em("Build a new prediction model using mGPS"),")"),
                      p("3. ",strong("Use an existing model to predict new samples")),
-                     p("In this mode, user can predict new sample origin based on an exsiting prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
+                     p("In this mode, user can predict new sample origin based on an existing prediction model. Model can be downloaded in ", strong("Output")," tab of function:",em("Build a new prediction model using mGPS", style = "color:purple"), "or ",em("Build a new prediction model using mGPS and predict new samples", style = "color:purple")),
                      br(),
                      p("For more detail introduction and examples, visit the ",
                        a("mGPS interface on Gitbub", 
