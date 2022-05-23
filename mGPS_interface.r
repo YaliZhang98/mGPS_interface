@@ -99,8 +99,28 @@ mGPS <-
     } else{
       
       training <- droplevels(training)
-      training[,classTarget] <- factor(training[,classTarget])
-      training[,hierarchy[1]] <- factor(training[,hierarchy[1]])
+      
+      if (length(hierarchy)==3){
+        class_target_orig_name <- training[,hierarchy[1]]
+        class_target_make_name <- make.names(training[,hierarchy[1]])
+                                           
+        training[,hierarchy[1]] <- make.names(training[,hierarchy[1]])
+        training[,hierarchy[1]] <- factor(training[,hierarchy[1]])
+      }else if(length(hierarchy)==4){
+        
+        if (classTarget == hierarchy[1]){
+          class_target_orig_name <- training[,hierarchy[1]]
+          class_target_make_name <- make.names(training[,hierarchy[1]])
+        }else if (classTarget == hierarchy[2]){
+          class_target_orig_name <- training[,hierarchy[2]]
+          class_target_make_name <- make.names(training[,hierarchy[2]])
+        }
+        
+        training[,hierarchy[1]] <- make.names(training[,hierarchy[1]])
+        training[,hierarchy[1]] <- factor(training[,hierarchy[1]])
+        training[,hierarchy[2]] <- make.names(training[,hierarchy[2]])
+        training[,hierarchy[2]] <- factor(training[,hierarchy[2]])
+      }
       
       #Train mGPS with 5-fold cross validation of training set for hyperparameter tuning. 
       message("Training mGPS...")
@@ -142,7 +162,7 @@ mGPS <-
       
       if(length(hierarchy) == 4){
         
-        print("--------- Continent training ---------")
+        print("--------- hierarchy 1 training ---------")
 
         Xgb_region <- train(x = training[,variables],y = training[,hierarchy[1]],
                             method = "xgbTree",
@@ -150,7 +170,7 @@ mGPS <-
                             tuneGrid = tune_grid,
                             nthread = nthread)
         
-        print("Continent training has been done ...")
+        print("hierarchy 1 training has been done ...")
 
         
         l1_train <- data.frame(training[,c(variables)],Xgb_region[["pred"]][order(Xgb_region$pred$rowIndex),levels(training[,hierarchy[1]]) ])
@@ -162,15 +182,21 @@ mGPS <-
       }
       
 
-      print("--------- City training --------- ")
+      print("--------- hierarchy 2 training --------- ")
       
-      Xgb_class <- train(x = l1_train,y = training[,classTarget],
+      if (length(hierarchy)==3){
+        class_train <- hierarchy[1]
+      }else if(length(hierarchy)==4){
+        class_train <- hierarchy[2]
+      }
+      
+      Xgb_class <- train(x = l1_train,y = training[,class_train],
                          method = "xgbTree",
                          trControl = trControlClass,
                          tuneGrid = tune_grid,
                          nthread = nthread)
       
-      print("City training has been done ...")
+      print("hierarchy 2 training has been done ...")
       
       l2_train <- data.frame(l1_train,Xgb_class[["pred"]][order(Xgb_class$pred$rowIndex),levels(training[,classTarget]) ])
       
@@ -213,6 +239,7 @@ mGPS <-
       model <- function(test,variables){
         
         if(length(hierarchy) == 4){
+          regPred <- predict(Xgb_region, newdata = test[,variables])
           regProbs <- predict(Xgb_region, newdata = test[,variables],type ="prob")
           
           l1_test <- data.frame(test[,variables], regProbs)
@@ -227,8 +254,38 @@ mGPS <-
         
         l3_test <- data.frame(l2_test, latPred)
         longPred <- predict(Xgb_longitude, newdata = l3_test)
-        return(list(classPred, latPred, longPred))
         
+        if (length(hierarchy)==3){
+          
+          classPred_new <- c()
+          for (p in classPred){
+            posi <- which(class_target_make_name %in% p)
+            classPred_new <- c(classPred_new,class_target_orig_name[posi])
+          }
+            
+          return(list(classPred_new, latPred, longPred))
+        }else if(length(hierarchy)==4){
+          
+          if (classTarget == hierarchy[1]){
+            
+            regPred_new <- c()
+            for (p in regPred){
+              posi <- which(class_target_make_name %in% p)
+              regPred_new <- c(regPred_new,class_target_orig_name[posi])
+            }
+            
+            return(list(regPred_new, latPred, longPred))
+          }else if (classTarget == hierarchy[2]){
+            
+            classPred_new <- c()
+            for (p in classPred){
+              posi <- which(class_target_make_name %in% p)
+              classPred_new <- c(classPred_new,class_target_orig_name[posi])
+            }
+            
+            return(list(classPred_new, latPred, longPred))
+          }
+        }
       }
 
       message("Generating predictions...")
@@ -245,7 +302,7 @@ mGPS <-
       }
       
       if(length(hierarchy) == 4){
-        
+        regPred <- predict(Xgb_region, newdata = newdata_in)
         regProbs <- predict(Xgb_region, newdata = newdata_in,type ="prob")
         
         l1_test <- data.frame(newdata_in, regProbs)
@@ -277,8 +334,16 @@ mGPS <-
       }else  if(length(hierarchy) == 4){
         model_store <- list(Xgb_region,Xgb_class,Xgb_latitude,Xgb_longitude,"model" = model)
       }
-      prediction_store <- list(classPred, latPred, longPred)
       
+      if (length(hierarchy)==3){
+        prediction_store <- list(classPred, latPred, longPred)
+      }else if(length(hierarchy)==4){
+        if (classTarget == hierarchy[1]){
+          prediction_store <- list(regPred, latPred, longPred)
+        }else if (classTarget == hierarchy[2]){
+          prediction_store <- list(classPred, latPred, longPred)
+        }
+      }
       return(list(model_store, prediction_store))
   }
 
@@ -287,7 +352,7 @@ mGPS <-
 
 # Pull to nearest coastline
 
-pull_land <- function(land_preds){
+pull_land <- function(land_preds,hierarchy){
 
   coastlines <- cbind("x"  = maps::SpatialLines2map(rworldmap::coastsCoarse)$x ,"y" =maps::SpatialLines2map(rworldmap::coastsCoarse)$y)
   coastlines <- coastlines[complete.cases(coastlines),]
@@ -313,13 +378,24 @@ pull_land <- function(land_preds){
   land_preds$longPred[toAdjust] <- adjusted[1,]
   land_preds$latPred[toAdjust] <- adjusted[2,]
   
+  for (i in 1:nrow(land_preds)){
+    
+    if(length(hierarchy) == 3){
+      
+      land_preds[i,"Distance_from_origin"] <- geosphere::distm(c(land_preds[i,"longPred"],land_preds[i,"latPred"]), c(land_preds[i,hierarchy[3]],land_preds[i,hierarchy[2]]), fun = geosphere::distHaversine)/1000
+      
+    }else  if(length(hierarchy) == 4){
+      land_preds[i,"Distance_from_origin"] <- geosphere::distm(c(land_preds[i,"longPred"],land_preds[i,"latPred"]), c(land_preds[i,hierarchy[4]],land_preds[i,hierarchy[3]]), fun = geosphere::distHaversine)/1000
+    }
+  }
+  
   return(land_preds)
 }
 
 
 # Pull to nearest water body
 
-pull_marine <- function(marine_preds){
+pull_marine <- function(marine_preds,hierarchy){
 
 
   seas <- rgdal::readOGR(dsn = "Data/Geo/ne_10m_geography_marine_polys", layer = "ne_10m_geography_marine_polys")
@@ -349,6 +425,17 @@ pull_marine <- function(marine_preds){
   
   marine_preds[which(ii == TRUE), "latPred"] <- adjusted[2,]
   marine_preds[which(ii == TRUE), "longPred"] <- adjusted[1,]
+  
+  for (i in 1:nrow(marine_preds)){
+    
+    if(length(hierarchy) == 3){
+      
+      marine_preds[i,"Distance_from_origin"] <- geosphere::distm(c(marine_preds[i,"longPred"],marine_preds[i,"latPred"]), c(marine_preds[i,hierarchy[3]],marine_preds[i,hierarchy[2]]), fun = geosphere::distHaversine)/1000
+      
+    }else  if(length(hierarchy) == 4){
+      marine_preds[i,"Distance_from_origin"] <- geosphere::distm(c(marine_preds[i,"longPred"],marine_preds[i,"latPred"]), c(marine_preds[i,hierarchy[4]],marine_preds[i,hierarchy[3]]), fun = geosphere::distHaversine)/1000
+    }
+  }
   
   return(marine_preds)
 }
@@ -396,7 +483,7 @@ data_preprocess_f <- function(train_f,target_in,hierarchy,remove_small){
     metasub_data[,hierarchy[2]] <- droplevels(metasub_data[,hierarchy[2]])
   }
 
-  print("metasub_data has been pre-processed ...")
+  print("metadata has been pre-processed ...")
   return(metasub_data)
 }
 
@@ -568,7 +655,7 @@ MetaSub_prediction <- function(model_store,test_dataset){
                      "latPred" = testPreds[[2]], 
                      "longPred" = testPreds[[3]] )
   
-  write.csv(DataPreds,"Outputs/Predicted_origin.csv")
+  write.csv(DataPreds,"Outputs/Prediction_results.csv")
   
   return(DataPreds)
 }
@@ -1279,15 +1366,15 @@ server <- function(input,output){
       
       MetasubDataPreds <- reactive({
           MetasubDataPreds <- MetaSub_prediction(model_store(),test_f())
-          
         return(MetasubDataPreds)    
       })
 
     pull_MetasubDataPreds <- reactive({
+      hierarchy_here <- hierarchy_in()
       if (input$pull_1 == "land_1"){
-        pull_MetasubDataPreds <- pull_land(MetasubDataPreds())
+        pull_MetasubDataPreds <- pull_land(MetasubDataPreds(),hierarchy_here)
       }else if (input$pull_1 == "marine_1"){
-        pull_MetasubDataPreds <- pull_marine(MetasubDataPreds())  
+        pull_MetasubDataPreds <- pull_marine(MetasubDataPreds(),hierarchy_here)  
       }else{
         pull_MetasubDataPreds <- MetasubDataPreds()
       }
@@ -1304,7 +1391,7 @@ server <- function(input,output){
     output$downloadMap_1 <- downloadHandler(
       
       filename = function(){
-        return("Predicted_map.png")
+        return("Prediction_map.png")
       },
       content = function(file){
         
@@ -1355,7 +1442,7 @@ server <- function(input,output){
       output$downloadMap_2 <- downloadHandler(
         
         filename = function(){
-          return("Predicted_map.png")
+          return("Prediction_map.png")
         },
         content = function(file){
 
@@ -1386,7 +1473,7 @@ server <- function(input,output){
       output$downloadData_2 <- downloadHandler(
         
         filename = function(){
-          return("Predicted_origin.csv")
+          return("Prediction_results.csv")
         },
         content = function(file){
           write.csv(prediction_output()[[1]],file)
@@ -1686,25 +1773,26 @@ server <- function(input,output){
       
       prediction_output <- reactive({
         prediction_output <- prediction_output_before()
+        hierarchy_here <- hierarchy_in()
         if(input$program == "bb" ){
           if (input$pull_2 == "marine_2"){
             df <- prediction_output[[1]]
-            df_new <- pull_marine(df)
+            df_new <- pull_marine(df,hierarchy_here)
             prediction_output[[1]] <- df_new
           }else if(input$pull_2 == "land_2"){
             df <- prediction_output[[1]]
-            df_new <- pull_land(df)
+            df_new <- pull_land(df,hierarchy_here)
             prediction_output[[1]] <- df_new
           }
         }
         if(input$program == "cc" ){
           if (input$pull_3 == "marine_3"){
             df <- prediction_output[[1]]
-            df_new <- pull_marine(df)
+            df_new <- pull_marine(df,hierarchy_here)
             prediction_output[[1]] <- df_new
           }else if(input$pull_3 == "land_3"){
             df <- prediction_output[[1]]
-            df_new <- pull_land(df)
+            df_new <- pull_land(df,hierarchy_here)
             prediction_output[[1]] <- df_new
           }
         }
@@ -1744,7 +1832,7 @@ server <- function(input,output){
         
         output$downloadData_3 <- downloadHandler(
           filename = function(){
-            return("Predicted_origin.csv")
+            return("Prediction_results.csv")
           },
           content = function(file){
             write.csv(prediction_output()[[1]],file)
