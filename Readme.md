@@ -158,6 +158,18 @@ Required packages can be found in ```packages.r```
 
 Users can find the test files (example files) in the folder **Example_file**.  
 
+#### Input (Example) file description
+- *Merged_training_dataset.csv*:  
+  - Column 1: Sample ID  
+  - Column 2-42: Metadata of samples. It must conclude locality levels that will be submitted (latitude, longitude, 1-2 geographical level (e.g. continent, city))  
+  - Column 43-70: The relative sequence abundance data of taxa in each sample.  
+- *Separate_training_abundance.csv*:   
+  - Column 1: Sample ID  
+  -  Column 2-29: The relative sequence abundance data of taxa in each sample.  
+- *Separate_training_metadata.csv*:  
+  - Column 1: Sample ID
+  - Column 2-42: Metadata of samples. It must conclude locality levels that will be submitted (latitude, longitude, 1-2 geographical level (e.g. continent, city))  
+
 ### 1 Build a new prediction model using mGPS  
 
 For short runtimes, the sample database contains only a small amount of sample data, so models built from this reference dataset are less accurate. It runs for a different time on different computers, between about 10-40min.  
@@ -176,7 +188,7 @@ For short runtimes, the sample database contains only a small amount of sample d
 
 2. ```Enter the main locality level``` - city  
    ```Enter the locality hierarchy``` - continent,city,latitude,longitude  
-   ```Column range of abundance data``` - 43:70  
+   ```Column range of abundance data``` - 43:70 (For **Merged metadata and abundance file**); 2:29 (For **Separate metadata and abundance file**)  
 
 3. If select ```Locality sample size cut off (Optional)```:  
    ```Cut off of sample number ```  - 3     
