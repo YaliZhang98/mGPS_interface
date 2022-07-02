@@ -4,7 +4,6 @@ library(rworldmap)
 library(caret)
 library(maps)
 library(geosphere)
-library(caret)
 library(plyr)
 library(rgeos)
 library(mapplots)
@@ -375,17 +374,23 @@ pull_land <- function(land_preds,hierarchy){
   adjusted <-
     mapply(find_coast, long = land_preds$longPred[toAdjust], lat = land_preds$latPred[toAdjust])
   
-  land_preds$longPred[toAdjust] <- adjusted[1,]
-  land_preds$latPred[toAdjust] <- adjusted[2,]
+  if (length(adjusted) != 0){
+    land_preds$longPred[toAdjust] <- adjusted[1,]
+    land_preds$latPred[toAdjust] <- adjusted[2,]
+  }
   
-  for (i in 1:nrow(land_preds)){
-    
-    if(length(hierarchy) == 3){
+  print(hierarchy)
+  
+  if (class(hierarchy)=='character' && hierarchy[3] %in% colnames(land_preds)){
+    for (i in 1:nrow(land_preds)){
       
-      land_preds[i,"Distance_from_origin"] <- geosphere::distm(c(land_preds[i,"longPred"],land_preds[i,"latPred"]), c(land_preds[i,hierarchy[3]],land_preds[i,hierarchy[2]]), fun = geosphere::distHaversine)/1000
-      
-    }else  if(length(hierarchy) == 4){
-      land_preds[i,"Distance_from_origin"] <- geosphere::distm(c(land_preds[i,"longPred"],land_preds[i,"latPred"]), c(land_preds[i,hierarchy[4]],land_preds[i,hierarchy[3]]), fun = geosphere::distHaversine)/1000
+      if(length(hierarchy) == 3){
+        
+        land_preds[i,"Distance_from_origin"] <- geosphere::distm(c(land_preds[i,"longPred"],land_preds[i,"latPred"]), c(land_preds[i,hierarchy[3]],land_preds[i,hierarchy[2]]), fun = geosphere::distHaversine)/1000
+        
+      }else  if(length(hierarchy) == 4){
+        land_preds[i,"Distance_from_origin"] <- geosphere::distm(c(land_preds[i,"longPred"],land_preds[i,"latPred"]), c(land_preds[i,hierarchy[4]],land_preds[i,hierarchy[3]]), fun = geosphere::distHaversine)/1000
+      }
     }
   }
   
@@ -393,7 +398,7 @@ pull_land <- function(land_preds,hierarchy){
 }
 
 
-# Pull to nearest water body
+# Pull to nearest oceanic body
 
 pull_marine <- function(marine_preds,hierarchy){
 
@@ -423,17 +428,21 @@ pull_marine <- function(marine_preds,hierarchy){
   toAdjust <- marine_preds[which(ii == TRUE),]
   adjusted <- mapply(find_coast2, long = toAdjust$longPred, lat = toAdjust$latPred )
   
-  marine_preds[which(ii == TRUE), "latPred"] <- adjusted[2,]
-  marine_preds[which(ii == TRUE), "longPred"] <- adjusted[1,]
+  if (length(adjusted) != 0){
+    marine_preds[which(ii == TRUE), "latPred"] <- adjusted[2,]
+    marine_preds[which(ii == TRUE), "longPred"] <- adjusted[1,]
+  }
   
-  for (i in 1:nrow(marine_preds)){
-    
-    if(length(hierarchy) == 3){
+  if (class(hierarchy)=='character' &&  hierarchy[3] %in% colnames(marine_preds)){
+    for (i in 1:nrow(marine_preds)){
       
-      marine_preds[i,"Distance_from_origin"] <- geosphere::distm(c(marine_preds[i,"longPred"],marine_preds[i,"latPred"]), c(marine_preds[i,hierarchy[3]],marine_preds[i,hierarchy[2]]), fun = geosphere::distHaversine)/1000
-      
-    }else  if(length(hierarchy) == 4){
-      marine_preds[i,"Distance_from_origin"] <- geosphere::distm(c(marine_preds[i,"longPred"],marine_preds[i,"latPred"]), c(marine_preds[i,hierarchy[4]],marine_preds[i,hierarchy[3]]), fun = geosphere::distHaversine)/1000
+      if(length(hierarchy) == 3){
+        
+        marine_preds[i,"Distance_from_origin"] <- geosphere::distm(c(marine_preds[i,"longPred"],marine_preds[i,"latPred"]), c(marine_preds[i,hierarchy[3]],marine_preds[i,hierarchy[2]]), fun = geosphere::distHaversine)/1000
+        
+      }else  if(length(hierarchy) == 4){
+        marine_preds[i,"Distance_from_origin"] <- geosphere::distm(c(marine_preds[i,"longPred"],marine_preds[i,"latPred"]), c(marine_preds[i,hierarchy[4]],marine_preds[i,hierarchy[3]]), fun = geosphere::distHaversine)/1000
+      }
     }
   }
   
@@ -1074,7 +1083,7 @@ ui <- fluidPage(
                                                    value = c(-90,90)))) ,
                    radioButtons("pull_1", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_1",
-                                            "Pull to waterbody" = "marine_1",
+                                            "Pull to oceanic body" = "marine_1",
                                             "Default" = "none"),
                                 selected = "none"), 
                    plotOutput(outputId = "predicted_map_1"),
@@ -1167,7 +1176,7 @@ ui <- fluidPage(
                                                    value = c(-90,90)))) ,
                    radioButtons("pull_2", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_2",
-                                            "Pull to waterbody" = "marine_2",
+                                            "Pull to oceanic body" = "marine_2",
                                             "Default" = "none_2"),
                                 selected = "none_2"),   
                    plotOutput(outputId = "predicted_map_2"),
@@ -1299,7 +1308,7 @@ ui <- fluidPage(
                    
                    radioButtons("pull_3", "Whether pull points to land/marine",
                                 choices = c("Pull to land" = "land_3",
-                                            "Pull to waterbody" = "marine_3",
+                                            "Pull to oceanic body" = "marine_3",
                                             "Default" = "none"),
                                 selected = "none"),   
                    plotOutput(outputId = "predicted_map_3"),
